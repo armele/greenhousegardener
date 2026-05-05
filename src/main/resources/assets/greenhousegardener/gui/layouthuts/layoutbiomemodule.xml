@@ -1,0 +1,68 @@
+<window xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/1.20.1/src/main/resources/assets/blockui/gui/block_ui.xsd"
+    size="190 244">
+    <image source="minecolonies:textures/gui/builderhut/builder_paper.png" size="190 244"/>
+    <text id="desc" size="130 11" pos="30 14" color="black" textalign="MIDDLE"/>
+    <text size="32 11" pos="15 31" color="black" textalign="LEFT" label="$(com.greenhousegardener.core.gui.biome.field.header)"/>
+    <text size="68 11" pos="48 31" color="black" textalign="MIDDLE" label="$(com.greenhousegardener.core.gui.biome.temperature)"/>
+    <text size="56 11" pos="115 31" color="black" textalign="MIDDLE" label="$(com.greenhousegardener.core.gui.biome.humidity)"/>
+
+    <box id="field0" size="168 26" pos="11 47" linewidth="1">
+        <itemicon id="seed0" size="16 16" pos="4 5"/>
+        <text id="fieldName0" size="16 11" pos="25 8" color="black"/>
+        <dropdown id="temp0" size="68 17" pos="44 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_medium.png">
+            <button id="button" size="68 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
+        </dropdown>
+        <dropdown id="humidity0" size="56 17" pos="111 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png">
+            <button id="button" size="56 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"/>
+        </dropdown>
+    </box>
+
+    <box id="field1" size="168 26" pos="11 77" linewidth="1">
+        <itemicon id="seed1" size="16 16" pos="4 5"/>
+        <text id="fieldName1" size="16 11" pos="25 8" color="black"/>
+        <dropdown id="temp1" size="68 17" pos="44 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_medium.png">
+            <button id="button" size="68 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
+        </dropdown>
+        <dropdown id="humidity1" size="56 17" pos="111 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png">
+            <button id="button" size="56 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"/>
+        </dropdown>
+    </box>
+
+    <box id="field2" size="168 26" pos="11 107" linewidth="1">
+        <itemicon id="seed2" size="16 16" pos="4 5"/>
+        <text id="fieldName2" size="16 11" pos="25 8" color="black"/>
+        <dropdown id="temp2" size="68 17" pos="44 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_medium.png">
+            <button id="button" size="68 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
+        </dropdown>
+        <dropdown id="humidity2" size="56 17" pos="111 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png">
+            <button id="button" size="56 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"/>
+        </dropdown>
+    </box>
+
+    <box id="field3" size="168 26" pos="11 137" linewidth="1">
+        <itemicon id="seed3" size="16 16" pos="4 5"/>
+        <text id="fieldName3" size="16 11" pos="25 8" color="black"/>
+        <dropdown id="temp3" size="68 17" pos="44 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_medium.png">
+            <button id="button" size="68 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
+        </dropdown>
+        <dropdown id="humidity3" size="56 17" pos="111 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png">
+            <button id="button" size="56 17" pos="0 0" textcolor="black"
+                    source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"/>
+        </dropdown>
+    </box>
+</window>

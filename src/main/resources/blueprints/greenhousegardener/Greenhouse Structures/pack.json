@@ -1,0 +1,14 @@
+{
+    "version": 3,
+    "pack-format": 1,
+    "desc": "Greenhouse Structures",
+    "authors": [
+        "Ayar",
+        "AnyankaT"
+    ],
+    "mods": [
+        "structurize"
+    ],
+    "name": "Greenhouse Gardener",
+    "icon": "greenhouse.png"
+}

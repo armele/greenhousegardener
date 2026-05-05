@@ -1,0 +1,45 @@
+{
+    "name": "Nature's Master",
+    "subtitle": "The climate is what I say it is!",
+    "branch": "minecolonies:technology",
+    "parentResearch": "minecolonies:technology/biodegradable",
+    "researchLevel": 2,
+    "sortOrder" : 0,
+    "exclusiveChildResearch": false,
+    "no-reset" : false,
+    "hidden": false,
+    "autostart": false,
+    "instant": false,
+    "requirements": [
+        {
+            "type": "minecolonies:building",
+            "building": "minecolonies:farmer",
+            "level": 1
+        }
+    ],
+    "costs": [
+        {
+            "count": 1,
+            "item": "minecraft:lava_bucket"        
+        },
+        {
+            "count": 1,
+            "item": "minecraft:water_bucket"        
+        },
+        {
+            "count": 1,
+            "item": "minecraft:packed_ice"        
+        },
+        {
+            "count": 1,
+            "item": "minecraft:sand"        
+        }
+    ],
+    "effects": [
+        {
+            "id": "greenhousegardener:effects/blockhutgreenhouse",
+            "level": 1
+        }
+    ],
+    "icon": "greenhousegardener:greenhouse"
+}

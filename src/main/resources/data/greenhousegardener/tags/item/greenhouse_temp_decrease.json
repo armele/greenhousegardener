@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#greenhousegardener:greenhouse_temp_decrease_low",
+    "#greenhousegardener:greenhouse_temp_decrease_medium",
+    "#greenhousegardener:greenhouse_temp_decrease_high"
+  ]
+}

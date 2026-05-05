@@ -1,0 +1,40 @@
+{
+  "parent": "greenhousegardener:block/blockhutgreenhouse",
+  "display": {
+    "thirdperson_righthand": {
+      "rotation": [0, 45, 0],
+      "translation": [0, 4, 1],
+      "scale": [0.6, 0.6, 0.6]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [0, 45, 0],
+      "translation": [0, 4, 1],
+      "scale": [0.6, 0.6, 0.6]
+    },
+    "firstperson_righthand": {
+      "rotation": [0, 45, 0],
+      "translation": [0, 2.75, 0],
+      "scale": [0.65, 0.65, 0.65]
+    },
+    "firstperson_lefthand": {
+      "rotation": [0, -135, 0],
+      "translation": [0, 2.75, 0],
+      "scale": [0.65, 0.65, 0.65]
+    },
+    "ground": {
+      "translation": [0, 3.5, 0],
+      "scale": [0.6, 0.6, 0.6]
+    },
+    "gui": {
+      "rotation": [30, -135, 0],
+      "translation": [0, 1, 0],
+      "scale": [0.72, 0.72, 0.72]
+    },
+    "head": {
+      "translation": [0, 14.25, 0]
+    },
+    "fixed": {
+      "translation": [0, 3.25, 0]
+    }
+  }
+}

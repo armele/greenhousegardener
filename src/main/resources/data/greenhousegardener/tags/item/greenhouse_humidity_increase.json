@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#greenhousegardener:greenhouse_humidity_increase_low",
+    "#greenhousegardener:greenhouse_humidity_increase_medium",
+    "#greenhousegardener:greenhouse_humidity_increase_high"
+  ]
+}

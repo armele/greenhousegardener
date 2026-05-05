@@ -46,7 +46,7 @@ authors="Ayar"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Allows players to craft items from a MineColonies workshop using the contents of the warehouse as their crafting supply.
+Adds a MineColonies Greenhouse building for managing crop-growing biomes with colony-supplied materials.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
@@ -91,7 +91,7 @@ Allows players to craft items from a MineColonies workshop using the contents of
 [[dependencies.${mod_id}]]
     modId="minecolonies"
     type="required"
-    versionRange="[1.1.1290,)"
+    versionRange="[1.1.1305,)"
     ordering="AFTER"
     side="BOTH"
 

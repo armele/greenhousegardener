@@ -1,0 +1,39 @@
+<window xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd"
+    size="190 244">
+    <image source="minecolonies:textures/gui/builderhut/builder_paper.png" size="190 244"/>
+    <text id="desc" size="130 11" pos="30 13" textalign="MIDDLE" color="black"/>
+
+    <text id="increaseTitle" size="110 11" pos="37 29" textalign="MIDDLE" color="black"/>
+    <button id="addIncrease" size="52 15" pos="125 27" color="black"
+        source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"
+        label="$(com.minecolonies.coremod.gui.warehouse.add)"/>
+    <list id="increaseList" size="164 73" pos="13 45" emptytext="$(com.greenhousegardener.core.gui.climate.items.empty)" emptycolor="black">
+        <box size="100% 17" linewidth="1">
+            <itemicon id="itemIcon" size="17 17" pos="0 0"/>
+            <text id="itemName" size="85 12" pos="20 1" color="black"/>
+            <text id="itemClimateModificationUnit" size="18 12" pos="112 1" color="black"
+                tooltip="$(com.greenhousegardener.core.gui.climate.modification_unit.tooltip)"/>
+            <button label="X" id="removeIncrease" pos="131 1" size="29 15"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png" color="red"/>
+        </box>
+    </list>
+
+    <text id="decreaseTitle" size="110 11" pos="37 125" textalign="MIDDLE" color="black"/>
+    <button id="addDecrease" size="52 15" pos="125 123" color="black"
+        source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"
+        label="$(com.minecolonies.coremod.gui.warehouse.add)"/>
+    <list id="decreaseList" size="164 73" pos="13 141" emptytext="$(com.greenhousegardener.core.gui.climate.items.empty)" emptycolor="black">
+        <box size="100% 17" linewidth="1">
+            <itemicon id="itemIcon" size="17 17" pos="0 0"/>
+            <text id="itemName" size="85 12" pos="20 1" color="black"/>
+            <text id="itemClimateModificationUnit" size="18 12" pos="112 1" color="black"
+                tooltip="$(com.greenhousegardener.core.gui.climate.modification_unit.tooltip)"/>
+            <button label="X" id="removeDecrease" pos="131 1" size="29 15"
+                source="minecolonies:textures/gui/builderhut/builder_button_very_small.png" color="red"/>
+        </box>
+    </list>
+
+    <text size="180 11" pos="5 219" textalign="MIDDLE" color="black"
+        label="$(com.greenhousegardener.core.gui.climate.quantity.protected)"
+        tooltip="$(com.greenhousegardener.core.gui.climate.quantity.protected.tooltip)"/>
+</window>

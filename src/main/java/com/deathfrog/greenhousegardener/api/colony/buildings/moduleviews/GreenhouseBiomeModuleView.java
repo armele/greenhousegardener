@@ -1,29 +1,49 @@
 package com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.deathfrog.greenhousegardener.core.client.gui.modules.WindowBiomeModule;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 import com.ldtteam.blockui.views.BOWindow;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModuleView;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
 {
-
+    private int supportedFieldCount;
+    private final List<FieldBiomeView> fields = new ArrayList<>();
 
     @Override
-    public void deserialize(@NotNull RegistryFriendlyByteBuf arg0)
+    public void deserialize(@NotNull RegistryFriendlyByteBuf buf)
     {
-        // Authoritative workshop settings are delivered per-player after the window opens.
+        supportedFieldCount = buf.readInt();
+        fields.clear();
+
+        final int fieldCount = buf.readInt();
+        for (int i = 0; i < fieldCount; i++)
+        {
+            fields.add(new FieldBiomeView(
+                buf.readInt(),
+                buf.readBlockPos(),
+                ItemStack.OPTIONAL_STREAM_CODEC.decode(buf),
+                buf.readEnum(TemperatureSetting.class),
+                buf.readEnum(HumiditySetting.class)));
+        }
     }
 
     @Override
     public @Nullable Component getDesc()
     {
-        return Component.translatable("com.greenhousegardener.core.gui.modules.workshop");
+        return Component.translatable("com.greenhousegardener.core.gui.modules.biome_settings");
     }
 
     @Override
@@ -41,6 +61,33 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
     public String getIcon()
     {
         return "greenhouse";
+    }
+
+    public int getSupportedFieldCount()
+    {
+        return supportedFieldCount;
+    }
+
+    public List<FieldBiomeView> getFields()
+    {
+        return fields;
+    }
+
+    public void setFieldAssignment(final int fieldIndex, final TemperatureSetting temperature, final HumiditySetting humidity)
+    {
+        for (int i = 0; i < fields.size(); i++)
+        {
+            final FieldBiomeView field = fields.get(i);
+            if (field.fieldIndex() == fieldIndex)
+            {
+                fields.set(i, new FieldBiomeView(field.fieldIndex(), field.position(), field.seed(), temperature, humidity));
+                return;
+            }
+        }
+    }
+
+    public record FieldBiomeView(int fieldIndex, BlockPos position, ItemStack seed, TemperatureSetting temperature, HumiditySetting humidity)
+    {
     }
 
 }
