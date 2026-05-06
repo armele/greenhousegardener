@@ -1,0 +1,26 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "greenhousegardener:biscuits"
+    },
+    {
+      "id": "greenhousegardener:sausage"
+    },
+    {
+      "id": "minecolonies:large_milk_bottle"
+    }
+  ],
+  "additional-output": [
+    {
+      "id": "minecolonies:large_empty_bottle"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:biscuits_and_gravy"
+  },
+  "show-tooltip": true
+}

@@ -1,0 +1,25 @@
+{
+  "variants": {
+    "age=0": {
+      "model": "greenhousegardener:block/crops/cucumber/stage0"
+    },
+    "age=1": {
+      "model": "greenhousegardener:block/crops/cucumber/stage1"
+    },
+    "age=2": {
+      "model": "greenhousegardener:block/crops/cucumber/stage2"
+    },
+    "age=3": {
+      "model": "greenhousegardener:block/crops/cucumber/stage3"
+    },
+    "age=4": {
+      "model": "greenhousegardener:block/crops/cucumber/stage4"
+    },
+    "age=5": {
+      "model": "greenhousegardener:block/crops/cucumber/stage5"
+    },
+    "age=6": {
+      "model": "greenhousegardener:block/crops/cucumber/stage6"
+    }
+  }
+}

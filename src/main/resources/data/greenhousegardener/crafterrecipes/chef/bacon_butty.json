@@ -1,0 +1,21 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "minecraft:porkchop"
+    },
+    {
+      "id": "greenhousegardener:sourdough_bread"
+    },
+    {
+      "id": "minecolonies:butter"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 2,
+  "result": {
+    "id": "greenhousegardener:bacon_butty"
+  },
+  "show-tooltip": true
+}

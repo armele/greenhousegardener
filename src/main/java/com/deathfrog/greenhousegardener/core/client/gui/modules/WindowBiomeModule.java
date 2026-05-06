@@ -34,6 +34,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     private static final String BALANCE_COLD = "coldBalance";
     private static final String BALANCE_HUMID = "humidBalance";
     private static final String BALANCE_DRY = "dryBalance";
+    private static final String FIELD_SUMMARY = "fieldSummary";
     private static final String FIELD_SEED = "seed";
     private static final String FIELD_OWNED = "owned";
     private static final String FIELD_TEMPERATURE = "temp";
@@ -66,6 +67,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
         helpTipBuilder.build();
 
         updateBalances();
+        updateFieldSummary();
         updateFields();
     }
 
@@ -77,6 +79,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     {
         super.onUpdate();
         updateBalances();
+        updateFieldSummary();
         updateFields();
     }
 
@@ -90,6 +93,19 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
         findPaneOfTypeByID(BALANCE_COLD, Text.class).setText(Component.literal(String.valueOf(moduleView.getColdBalance())));
         findPaneOfTypeByID(BALANCE_HUMID, Text.class).setText(Component.literal(String.valueOf(moduleView.getHumidBalance())));
         findPaneOfTypeByID(BALANCE_DRY, Text.class).setText(Component.literal(String.valueOf(moduleView.getDryBalance())));
+    }
+
+    /**
+     * Refreshes the field and biome-slot summary above the field table.
+     */
+    private void updateFieldSummary()
+    {
+        findPaneOfTypeByID(FIELD_SUMMARY, Text.class).setText(Component.translatable(
+            "com.greenhousegardener.core.gui.biome.field_summary",
+            moduleView.getOwnedFieldCount(),
+            moduleView.getSupportedFieldCount(),
+            moduleView.getModifiedBiomeCount(),
+            moduleView.getModifiedBiomeLimit()));
     }
 
     /**
@@ -282,7 +298,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      */
     private boolean canClaimMoreFields()
     {
-        return ownedFieldCount() < moduleView.getSupportedFieldCount();
+        return moduleView.getOwnedFieldCount() < moduleView.getSupportedFieldCount();
     }
 
     /**
@@ -338,24 +354,6 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
         for (final FieldBiomeView field : moduleView.getFields())
         {
             if (field.owned() && isModified(field))
-            {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
-     * Count the fields currently claimed in the client-side view.
-     *
-     * @return owned field count
-     */
-    private int ownedFieldCount()
-    {
-        int count = 0;
-        for (final FieldBiomeView field : moduleView.getFields())
-        {
-            if (field.owned())
             {
                 count++;
             }

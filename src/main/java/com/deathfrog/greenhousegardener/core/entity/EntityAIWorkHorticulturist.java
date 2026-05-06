@@ -13,6 +13,7 @@ import com.minecolonies.api.colony.requestsystem.token.IToken;
 import com.minecolonies.api.crafting.ItemStorage;
 import com.deathfrog.greenhousegardener.Config;
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
+import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitializer;
 import com.deathfrog.greenhousegardener.core.ModTags;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
@@ -39,6 +40,7 @@ import com.minecolonies.api.util.constant.StatisticsConstants;
 import com.minecolonies.core.colony.interactionhandling.StandardInteraction;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.entity.ai.workers.AbstractEntityAIInteract;
+import com.minecolonies.core.entity.pathfinding.navigation.EntityNavigationUtils;
 import com.minecolonies.core.util.citizenutils.CitizenItemUtils;
 
 import net.minecraft.core.BlockPos;
@@ -62,11 +64,19 @@ import static com.minecolonies.api.entity.ai.statemachine.states.AIWorkerState.*
 public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHorticulturist, BuildingGreenhouse>
 {
     private static final String FIELDS_TRANSFORMED_STAT = "fields_transformed";
+    private static final String FIELDS_MAINTAINED_STAT = "fields_maintained";
     private static final String CLIMATE_MATERIAL_REQUEST = "Greenhouse Climate Material";
     private static final double BASE_BIOME_TRANSFORM_XP = 1.0D;
-    private static final int BIOME_CELLS_PER_BONUS_XP = 16;
+    private static final double BASE_BIOME_MAINTENANCE_XP = 0.25D;
+    private static final int BIOME_CELLS_PER_BONUS_XP = 11;
     private static final int MAX_GREENHOUSE_ROOF_HEIGHT = 20;
     private static final int ROOF_INSPECTION_CORNERS = 4;
+    private static final int NORMAL_PRIMARY_SKILL = 20;
+    private static final int MAX_PRIMARY_SKILL = 99;
+    private static final double MAX_PRIMARY_SKILL_COST_DISCOUNT = 0.5D;
+    private static final int NORMAL_SECONDARY_SKILL = 20;
+    private static final int MAX_SECONDARY_SKILL = 99;
+    private static final double MAX_SECONDARY_SKILL_SPEED_BONUS = 0.5D;
 
 
     /**
@@ -93,6 +103,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         LEDGER_CLIMATE_MATERIAL,
         VALIDATE_FIELD_ROOF,
         TRANSFORM_FIELD,
+        MAINTAIN_FIELD,
         UNSET_FIELD_SEED,
         WANDER_IN_BUILDING;
 
@@ -114,6 +125,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             new AITarget<IAIState>(HorticulturistState.LEDGER_CLIMATE_MATERIAL, this::ledgerClimateMaterial, 10),
             new AITarget<IAIState>(HorticulturistState.VALIDATE_FIELD_ROOF, this::validateFieldRoof, 10),
             new AITarget<IAIState>(HorticulturistState.TRANSFORM_FIELD, this::transformField, 50),
+            new AITarget<IAIState>(HorticulturistState.MAINTAIN_FIELD, this::maintainField, 50),
             new AITarget<IAIState>(HorticulturistState.UNSET_FIELD_SEED, this::unsetFieldSeed, 50),
             new AITarget<IAIState>(HorticulturistState.WANDER_IN_BUILDING, this::wanderInBuilding, 20));
         worker.setCanPickUpLoot(true);
@@ -164,6 +176,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         final GreenhouseBiomeModule module = safeBiomeModule();
         final List<FarmField> fields = module.getManagedFields();
+        final long colonyDay = building.getColony().getDay();
         final int modifiedBiomeLimit = module.getModifiedBiomeLimit();
         int maintainedModifiedBiomes = 0;
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
@@ -187,7 +200,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 maintainedModifiedBiomes++;
             }
 
-            if (GreenhouseBiomeOverlayService.needsOverlay(level, field.getPosition(), fieldRange, climate))
+            if (!module.wasFieldVisitedOnDay(field.getPosition(), colonyDay)
+                && GreenhouseBiomeOverlayService.needsOverlay(level, field.getPosition(), fieldRange, climate))
             {
                 currentField = field;
                 currentFieldIndex = fieldIndex;
@@ -198,6 +212,21 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         job.resetNoGlassCounter();
+        job.setBiomeLedgerShortage(false);
+
+        for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
+        {
+            final FarmField field = fields.get(fieldIndex);
+            if (field == null || !needsMaintenanceVisit(level, module, field, colonyDay))
+            {
+                continue;
+            }
+
+            currentField = field;
+            currentFieldIndex = fieldIndex;
+            currentFieldRange = horizontalRange(field);
+            return HorticulturistState.MAINTAIN_FIELD;
+        }
 
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
@@ -230,7 +259,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return DECIDE;
         }
 
-        if (!walkToBuilding())
+        if (!walkToBuildingWithSkillSpeed())
         {
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
@@ -301,7 +330,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return DECIDE;
         }
 
-        if (!walkToSafePos(currentRoofInspectionTarget))
+        if (!walkToSafePosWithSkillSpeed(currentRoofInspectionTarget))
         {
             return HorticulturistState.VALIDATE_FIELD_ROOF;
         }
@@ -344,7 +373,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         final BlockPos fieldPosition = currentField.getPosition();
-        if (!walkToSafePos(fieldPosition))
+        if (!walkToSafePosWithSkillSpeed(fieldPosition))
         {
             return HorticulturistState.TRANSFORM_FIELD;
         }
@@ -357,6 +386,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final String shortage = ledgerShortage(conversionCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
         {
+            job.setBiomeLedgerShortage(true);
+            module.recordFieldVisited(fieldPosition, building.getColony().getDay());
             worker.getCitizenData().triggerInteraction(new StandardInteraction(
                 Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE, formatBlockPos(fieldPosition), shortage),
                 Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE),
@@ -364,6 +395,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             resetCurrentField();
             return DECIDE;
         }
+
+        job.setBiomeLedgerShortage(false);
 
         final OverlayResult result = GreenhouseBiomeOverlayService.applyOverlay(
             level,
@@ -376,6 +409,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         if (result.changedCells() > 0)
         {
             debitConversionLedgers(conversionCost, temperatureModule, humidityModule);
+            module.recordFieldConverted(fieldPosition, building.getColony().getDay());
             incrementActionsDone();
             worker.getCitizenExperienceHandler().addExperience(BASE_BIOME_TRANSFORM_XP + (double) result.changedCells() / BIOME_CELLS_PER_BONUS_XP);
             StatsUtil.trackStat(building, FIELDS_TRANSFORMED_STAT, 1);
@@ -383,6 +417,65 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             building.markDirty();
         }
         trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
+
+        resetCurrentField();
+        return DECIDE;
+    }
+
+    /**
+     * Walk to the selected field and pay its daily biome maintenance cost.
+     *
+     * @return the next AI state
+     */
+    protected IAIState maintainField()
+    {
+        final ServerLevel level = serverLevel();
+        if (level == null || currentField == null || currentFieldIndex < 0)
+        {
+            return DECIDE;
+        }
+
+        final BlockPos fieldPosition = currentField.getPosition();
+        if (!walkToSafePosWithSkillSpeed(fieldPosition))
+        {
+            return HorticulturistState.MAINTAIN_FIELD;
+        }
+
+        final long colonyDay = building.getColony().getDay();
+        final GreenhouseBiomeModule module = safeBiomeModule();
+        final FieldBiomeAssignment assignment = module.getAssignment(fieldPosition);
+        final BiomeConversionCost maintenanceCost = biomeMaintenanceCost(level, currentField, assignment, module, maintenanceDiscount());
+        final GreenhouseTemperatureModule temperatureModule = safeTemperatureModule();
+        final GreenhouseHumidityModule humidityModule = safeHumidityModule();
+        final String shortage = ledgerShortage(maintenanceCost, temperatureModule, humidityModule);
+        if (!shortage.isBlank())
+        {
+            final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+            job.setBiomeLedgerShortage(true);
+            worker.getCitizenData().triggerInteraction(new StandardInteraction(
+                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE, formatBlockPos(fieldPosition), shortage),
+                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
+                ChatPriority.BLOCKING));
+
+            if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
+            {
+                module.revertFieldToNaturalBiome(fieldPosition);
+                trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
+                building.markDirty();
+            }
+
+            resetCurrentField();
+            return DECIDE;
+        }
+
+        debitConversionLedgers(maintenanceCost, temperatureModule, humidityModule);
+        module.recordFieldMaintained(fieldPosition, colonyDay);
+        job.setBiomeLedgerShortage(false);
+        incrementActionsDone();
+        worker.getCitizenExperienceHandler().addExperience(BASE_BIOME_MAINTENANCE_XP);
+        StatsUtil.trackStat(building, FIELDS_MAINTAINED_STAT, 1);
+        module.markDirty();
+        building.markDirty();
 
         resetCurrentField();
         return DECIDE;
@@ -402,7 +495,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         final BlockPos fieldPosition = currentField.getPosition();
-        if (!walkToSafePos(fieldPosition))
+        if (!walkToSafePosWithSkillSpeed(fieldPosition))
         {
             return HorticulturistState.UNSET_FIELD_SEED;
         }
@@ -648,6 +741,43 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Get the fractional maintenance discount unlocked by efficient conversion research.
+     *
+     * @return discount from 0.0 to 1.0
+     */
+    private double maintenanceDiscount()
+    {
+        if (building == null || building.getColony() == null)
+        {
+            return 0.0D;
+        }
+
+        return building.getColony().getResearchManager().getResearchEffects().getEffectStrength(ModResearch.RESEARCH_EFFICIENT_CONVERSION);
+    }
+
+    /**
+     * Check whether an owned field should receive its one maintenance visit for a colony day.
+     *
+     * @param level the server level containing the field
+     * @param module biome module holding field tracking state
+     * @param field field to inspect
+     * @param colonyDay current colony day
+     * @return true when this field is modified, not converted today, and not already visited today
+     */
+    private static boolean needsMaintenanceVisit(
+        final ServerLevel level,
+        final GreenhouseBiomeModule module,
+        final FarmField field,
+        final long colonyDay)
+    {
+        final BlockPos fieldPosition = field.getPosition();
+        return fieldPosition != null
+            && module.isFieldModifiedFromNatural(level, fieldPosition)
+            && !module.wasFieldConvertedOnDay(fieldPosition, colonyDay)
+            && !module.wasFieldVisitedOnDay(fieldPosition, colonyDay);
+    }
+
+    /**
      * Convert a field biome assignment into shared greenhouse climate settings.
      *
      * @param assignment the field's requested temperature and humidity assignment
@@ -667,11 +797,52 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param module biome module holding natural biome captures
      * @return aggregated conversion costs by climate ledger direction
      */
-    private static BiomeConversionCost biomeConversionCost(
+    private BiomeConversionCost biomeConversionCost(
         final ServerLevel level,
         final FarmField field,
         final FieldBiomeAssignment assignment,
         final GreenhouseBiomeModule module)
+    {
+        return biomeClimateCost(level, field, assignment, module, Config.baseConversionCost.get(), primarySkillCostMultiplier(), 0.0D);
+    }
+
+    /**
+     * Calculate ledger costs for maintaining every X/Z block in a field away from its native biome climate.
+     *
+     * @param level the server level containing the field
+     * @param field the field to maintain
+     * @param assignment requested field climate
+     * @param module biome module holding natural biome captures
+     * @return aggregated maintenance costs by climate ledger direction
+     */
+    private BiomeConversionCost biomeMaintenanceCost(
+        final ServerLevel level,
+        final FarmField field,
+        final FieldBiomeAssignment assignment,
+        final GreenhouseBiomeModule module,
+        final double discount)
+    {
+        return biomeClimateCost(level, field, assignment, module, Config.baseMaintenanceCost.get(), primarySkillCostMultiplier(), discount);
+    }
+
+    /**
+     * Calculate ledger costs for every X/Z block in a field away from its native biome climate.
+     *
+     * @param level the server level containing the field
+     * @param field the field to price
+     * @param assignment requested field climate
+     * @param module biome module holding natural biome captures
+     * @param unitCost configured cost per rounded group of step-weighted cells
+     * @return aggregated costs by climate ledger direction
+     */
+    private static BiomeConversionCost biomeClimateCost(
+        final ServerLevel level,
+        final FarmField field,
+        final FieldBiomeAssignment assignment,
+        final GreenhouseBiomeModule module,
+        final int unitCost,
+        final double skillMultiplier,
+        final double discount)
     {
         final BlockPos center = field.getPosition();
         if (center == null)
@@ -717,10 +888,99 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         return new BiomeConversionCost(
-            conversionCost(hotStepCells),
-            conversionCost(coldStepCells),
-            conversionCost(humidStepCells),
-            conversionCost(dryStepCells));
+            climateCost(hotStepCells, unitCost, skillMultiplier, discount),
+            climateCost(coldStepCells, unitCost, skillMultiplier, discount),
+            climateCost(humidStepCells, unitCost, skillMultiplier, discount),
+            climateCost(dryStepCells, unitCost, skillMultiplier, discount));
+    }
+
+    /**
+     * Scale conversion and maintenance costs by the worker's primary job skill.
+     *
+     * @return cost multiplier applied before research discounts
+     */
+    private double primarySkillCostMultiplier()
+    {
+        if (worker == null || worker.getCitizenData() == null)
+        {
+            return 1.0D;
+        }
+
+        final int primarySkill = Math.max(0, Math.min(MAX_PRIMARY_SKILL,
+            worker.getCitizenData().getCitizenSkillHandler().getLevel(getModuleForJob().getPrimarySkill())));
+        final double discountPerSkill = MAX_PRIMARY_SKILL_COST_DISCOUNT / (MAX_PRIMARY_SKILL - NORMAL_PRIMARY_SKILL);
+        return 1.0D - ((primarySkill - NORMAL_PRIMARY_SKILL) * discountPerSkill);
+    }
+
+    /**
+     * Walk to the greenhouse building with the secondary-skill speed bonus.
+     *
+     * @return true when the worker has arrived
+     */
+    private boolean walkToBuildingWithSkillSpeed()
+    {
+        if (building == null)
+        {
+            return true;
+        }
+
+        return walkToPosInBuildingWithSkillSpeed(building.getPosition(), EntityNavigationUtils.BUILDING_REACH_DIST);
+    }
+
+    /**
+     * Walk to a safe position with the secondary-skill speed bonus.
+     *
+     * @param pos target position
+     * @return true when the worker has arrived
+     */
+    private boolean walkToSafePosWithSkillSpeed(final BlockPos pos)
+    {
+        return EntityNavigationUtils.walkToPos(worker, pos, 4, true, secondarySkillSpeedMultiplier());
+    }
+
+    /**
+     * Walk within the greenhouse building with the secondary-skill speed bonus.
+     *
+     * @param pos target position
+     * @param reachDistance distance considered close enough
+     * @return true when the worker has arrived
+     */
+    private boolean walkToPosInBuildingWithSkillSpeed(final BlockPos pos, final int reachDistance)
+    {
+        if (building == null)
+        {
+            return walkToSafePosWithSkillSpeed(pos);
+        }
+
+        final Tuple<BlockPos, BlockPos> corners = building.getCorners();
+        final BlockPos center = new BlockPos(
+            (corners.getA().getX() + corners.getB().getX()) / 2,
+            building.getPosition().getY(),
+            (corners.getA().getZ() + corners.getB().getZ()) / 2);
+        return EntityNavigationUtils.walkCloseToXNearY(worker, pos, center, reachDistance, true, secondarySkillSpeedMultiplier());
+    }
+
+    /**
+     * Scale walking speed by the worker's secondary job skill, with upside only above normal.
+     *
+     * @return navigation speed multiplier
+     */
+    private double secondarySkillSpeedMultiplier()
+    {
+        if (worker == null || worker.getCitizenData() == null)
+        {
+            return 1.0D;
+        }
+
+        final int secondarySkill = Math.max(0, Math.min(MAX_SECONDARY_SKILL,
+            worker.getCitizenData().getCitizenSkillHandler().getLevel(getModuleForJob().getSecondarySkill())));
+        if (secondarySkill <= NORMAL_SECONDARY_SKILL)
+        {
+            return 1.0D;
+        }
+
+        final double bonusPerSkill = MAX_SECONDARY_SKILL_SPEED_BONUS / (MAX_SECONDARY_SKILL - NORMAL_SECONDARY_SKILL);
+        return 1.0D + ((secondarySkill - NORMAL_SECONDARY_SKILL) * bonusPerSkill);
     }
 
     /**
@@ -780,19 +1040,25 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
-     * Convert step-weighted X/Z blocks into rounded-up ledger cost.
+     * Convert step-weighted X/Z blocks into rounded-up ledger cost with skill scaling and an optional discount.
      *
      * @param stepCells number of block positions multiplied by climate steps
-     * @return ledger cost for those step-weighted positions
+     * @param unitCost configured cost per rounded group of step-weighted cells
+     * @param skillMultiplier multiplier from the worker's primary skill
+     * @param discount fractional discount clamped to 0.0 through 1.0
+     * @return discounted ledger cost for those step-weighted positions
      */
-    private static int conversionCost(final int stepCells)
+    private static int climateCost(final int stepCells, final int unitCost, final double skillMultiplier, final double discount)
     {
         if (stepCells <= 0)
         {
             return 0;
         }
 
-        return ((stepCells + BIOME_CELLS_PER_BONUS_XP - 1) / BIOME_CELLS_PER_BONUS_XP) * Config.baseConversionCost.get();
+        final int cost = ((stepCells + BIOME_CELLS_PER_BONUS_XP - 1) / BIOME_CELLS_PER_BONUS_XP) * unitCost;
+        final double clampedSkillMultiplier = Math.max(0.0D, skillMultiplier);
+        final double clampedDiscount = Math.max(0.0D, Math.min(1.0D, discount));
+        return (int) Math.ceil(cost * clampedSkillMultiplier * (1.0D - clampedDiscount));
     }
 
     /**

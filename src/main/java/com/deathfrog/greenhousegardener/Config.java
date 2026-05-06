@@ -15,36 +15,24 @@ public class Config
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
     public static final ModConfigSpec SPEC;
 
-    public static final ConfigValue<String>  coldDry;
-    public static final ConfigValue<String>  coldNormal;
-    public static final ConfigValue<String>  coldHumid;
-    public static final ConfigValue<String>  temperateDry;
-    public static final ConfigValue<String>  temperateNormal;
-    public static final ConfigValue<String>  temperateHumid;
-    public static final ConfigValue<String>  hotDry;
-    public static final ConfigValue<String>  hotNormal;
-    public static final ConfigValue<String>  hotHumid;
-
     public static final ConfigValue<Integer>  baseConversionCost;
+    public static final ConfigValue<Integer>  baseMaintenanceCost;
+    public static final ConfigValue<Integer>  maintenanceRevertDays;
     public static final ConfigValue<Integer>  baseBiomeCount;
+
+    public static final ConfigValue<Integer>  climateControlUnitsLow;
+    public static final ConfigValue<Integer>  climateControlUnitsMedium;
+    public static final ConfigValue<Integer>  climateControlUnitsHigh;
 
     static
     {
-            // Notifications
-        BUILDER.push("reference biomes");
-        coldDry =       BUILDER.comment("Cold and dry").define("coldDry", "minecraft:snowy_slopes");
-        coldNormal =    BUILDER.comment("Cold normal").define("coldNormal", "minecraft:snowy_plains");
-        coldHumid =     BUILDER.comment("Cold and humid").define("coldHumid", "minecraft:old_growth_pine_taiga");
-        temperateDry =       BUILDER.comment("Temperate and dry").define("temperateDry", "minecraft:savanna");
-        temperateNormal =    BUILDER.comment("Temperate normal").define("temperateNormal", "minecraft:plains");
-        temperateHumid =     BUILDER.comment("Temperate and humid").define("temperateHumid", "minecraft:swamp");
-        hotDry =       BUILDER.comment("Hot and dry").define("hotDry", "minecraft:desert");
-        hotNormal =    BUILDER.comment("Hot normal").define("hotNormal", "minecraft:sparse_jungle");
-        hotHumid =     BUILDER.comment("Hot and humid").define("hotHumid", "minecraft:jungle");
-        BUILDER.pop();
-
         BUILDER.push("balance");
-        baseConversionCost = BUILDER.comment("Conversion cost").defineInRange("baseConversionCost", 1, 1, 10);
+        climateControlUnitsLow = BUILDER.comment("Climate Control Unit Value (CCU) - Low ").defineInRange("climateControlUnitsLow", 1, 1, 55);
+        climateControlUnitsMedium = BUILDER.comment("Climate Control Unit Value (CCU) - Medium ").defineInRange("climateControlUnitsMedium", 3, 1, 55);
+        climateControlUnitsHigh = BUILDER.comment("Climate Control Unit Value (CCU) - High ").defineInRange("climateControlUnitsHigh", 7, 1, 55);
+        baseConversionCost = BUILDER.comment("Conversion cost (CCU)").defineInRange("baseConversionCost", 6, 1, 10);
+        baseMaintenanceCost = BUILDER.comment("Maintenance cost (CCU)").defineInRange("baseMaintenanceCost", 2, 1, 10);
+        maintenanceRevertDays = BUILDER.comment("Colony days a field can miss maintenance before reverting to its natural biome").defineInRange("maintenanceRevertDays", 3, 1, 30);
         baseBiomeCount = BUILDER.comment("Base custom biomes").defineInRange("baseBiomeCount", 2, 1, 4);
         BUILDER.pop();
 

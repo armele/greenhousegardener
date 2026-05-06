@@ -1,0 +1,21 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "greenhousegardener:barbecue"
+    },
+    {
+      "id": "greenhousegardener:potato_chips"
+    },
+    {
+      "id": "greenhousegardener:coleslaw"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:barbecue_plate"
+  },
+  "show-tooltip": true
+}

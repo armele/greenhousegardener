@@ -1,0 +1,8 @@
+{
+  "entries": [
+    "greenhousegardener:crops/blocks/short_grass",
+    "greenhousegardener:crops/blocks/tall_grass",
+    "greenhousegardener:crops/blocks/fern"
+  ],
+  "replace": false
+}

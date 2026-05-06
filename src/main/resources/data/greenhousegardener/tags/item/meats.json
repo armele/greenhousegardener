@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "#c:foods/raw_meat",
+    {
+      "id": "#c:foods/raw_meats",
+      "required": false
+    },
+    "#minecolonies:rawmeat",
+    "minecraft:beef",
+    "minecraft:porkchop",
+    "minecraft:chicken",
+    "minecraft:rabbit",
+    "minecraft:mutton"
+  ]
+}

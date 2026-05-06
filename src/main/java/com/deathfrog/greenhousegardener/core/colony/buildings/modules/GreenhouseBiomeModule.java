@@ -14,8 +14,9 @@ import org.apache.logging.log4j.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
 
 import com.deathfrog.greenhousegardener.Config;
-import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.ModResearch;
+import com.deathfrog.greenhousegardener.core.ModTags;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
@@ -54,6 +55,11 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_OWNED_FIELDS = "ownedFields";
     private static final String TAG_TEMPERATURE = "temperature";
     private static final String TAG_HUMIDITY = "humidity";
+    private static final String TAG_LAST_CONVERTED_DAYS = "lastConvertedDays";
+    private static final String TAG_LAST_FIELD_VISIT_DAYS = "lastFieldVisitDays";
+    private static final String TAG_LAST_MAINTENANCE_VISIT_DAYS = "lastMaintenanceVisitDays";
+    private static final String TAG_FIRST_MISSED_MAINTENANCE_DAYS = "firstMissedMaintenanceDays";
+    private static final String TAG_DAY = "day";
     private static final String TAG_NATURAL_BIOMES = "naturalBiomes";
     private static final String TAG_APPLIED_BIOMES = "appliedBiomes";
     private static final String TAG_POS = "pos";
@@ -61,6 +67,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
     private final Map<BlockPos, FieldBiomeAssignment> assignments = new HashMap<>();
     private final Set<BlockPos> ownedFields = new HashSet<>();
+    private final Map<BlockPos, Long> lastConvertedDays = new HashMap<>();
+    private final Map<BlockPos, Long> lastFieldVisitDays = new HashMap<>();
+    private final Map<BlockPos, Long> lastMaintenanceVisitDays = new HashMap<>();
+    private final Map<BlockPos, Long> firstMissedMaintenanceDays = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
 
@@ -101,6 +111,18 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         appliedBiomes.clear();
         readBiomeMap(compound.getList(TAG_APPLIED_BIOMES, Tag.TAG_COMPOUND), appliedBiomes);
+
+        lastConvertedDays.clear();
+        readDayMap(compound.getList(TAG_LAST_CONVERTED_DAYS, Tag.TAG_COMPOUND), lastConvertedDays);
+
+        lastFieldVisitDays.clear();
+        readDayMap(compound.getList(TAG_LAST_FIELD_VISIT_DAYS, Tag.TAG_COMPOUND), lastFieldVisitDays);
+
+        lastMaintenanceVisitDays.clear();
+        readDayMap(compound.getList(TAG_LAST_MAINTENANCE_VISIT_DAYS, Tag.TAG_COMPOUND), lastMaintenanceVisitDays);
+
+        firstMissedMaintenanceDays.clear();
+        readDayMap(compound.getList(TAG_FIRST_MISSED_MAINTENANCE_DAYS, Tag.TAG_COMPOUND), firstMissedMaintenanceDays);
     }
 
     @SuppressWarnings("null")
@@ -136,6 +158,11 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         {
             compound.put(TAG_APPLIED_BIOMES, altered);
         }
+
+        compound.put(TAG_LAST_CONVERTED_DAYS, writeDayMap(lastConvertedDays));
+        compound.put(TAG_LAST_FIELD_VISIT_DAYS, writeDayMap(lastFieldVisitDays));
+        compound.put(TAG_LAST_MAINTENANCE_VISIT_DAYS, writeDayMap(lastMaintenanceVisitDays));
+        compound.put(TAG_FIRST_MISSED_MAINTENANCE_DAYS, writeDayMap(firstMissedMaintenanceDays));
     }
 
     @SuppressWarnings("null")
@@ -150,6 +177,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final ServerLevel level = getServerLevel();
 
         buf.writeInt(supportedFields);
+        buf.writeInt(getOwnedFieldCount());
         buf.writeInt(getModifiedBiomeLimit());
         buf.writeInt(getModifiedBiomeCount(level));
         buf.writeInt(ledgerBalance(temperatureModule, ClimateItemList.INCREASE));
@@ -375,6 +403,138 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
+     * Record that a field was converted on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     */
+    public void recordFieldConverted(final BlockPos fieldPosition, final long colonyDay)
+    {
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        lastConvertedDays.put(immutablePosition, colonyDay);
+        lastFieldVisitDays.put(immutablePosition, colonyDay);
+        firstMissedMaintenanceDays.remove(immutablePosition);
+        markDirty();
+    }
+
+    /**
+     * Record that the horticulturist visited a field on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     */
+    public void recordFieldVisited(final BlockPos fieldPosition, final long colonyDay)
+    {
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        lastFieldVisitDays.put(fieldPosition.immutable(), colonyDay);
+        markDirty();
+    }
+
+    /**
+     * Check whether the horticulturist has already visited a field on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when any field trip already happened that day
+     */
+    public boolean wasFieldVisitedOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastFieldVisitDays.get(fieldPosition), colonyDay);
+    }
+
+    /**
+     * Check whether a field was converted on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when the field was converted on that day
+     */
+    public boolean wasFieldConvertedOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastConvertedDays.get(fieldPosition), colonyDay);
+    }
+
+    /**
+     * Check whether the horticulturist has already visited a field for maintenance on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when a maintenance visit already happened that day
+     */
+    public boolean wasFieldVisitedForMaintenanceOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastMaintenanceVisitDays.get(fieldPosition), colonyDay);
+    }
+
+    /**
+     * Record a successful maintenance visit.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     */
+    public void recordFieldMaintained(final BlockPos fieldPosition, final long colonyDay)
+    {
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        lastFieldVisitDays.put(immutablePosition, colonyDay);
+        lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
+        firstMissedMaintenanceDays.remove(immutablePosition);
+        markDirty();
+    }
+
+    /**
+     * Record a maintenance visit that could not be paid for.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return the first colony day in the current missed-maintenance streak
+     */
+    public long recordFieldMaintenanceMissed(final BlockPos fieldPosition, final long colonyDay)
+    {
+        if (fieldPosition == null)
+        {
+            return colonyDay;
+        }
+
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        lastFieldVisitDays.put(immutablePosition, colonyDay);
+        lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
+        final long firstMissedDay = firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> colonyDay);
+        markDirty();
+        return firstMissedDay;
+    }
+
+    /**
+     * Restore an owned field's overlay to the natural biome and clear its missed-maintenance streak.
+     *
+     * @param fieldPosition position of the farm field anchor
+     */
+    public void revertFieldToNaturalBiome(final BlockPos fieldPosition)
+    {
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        restoreFieldOverlay(fieldPosition);
+        firstMissedMaintenanceDays.remove(fieldPosition);
+        markDirty();
+    }
+
+    /**
      * Determine whether a field's configured seed can grow in its current biome.
      *
      * @param level server level containing the field
@@ -453,6 +613,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         clearInvalidOwnedFieldSeedsForActualBiomes(level);
         ownedFields.clear();
         assignments.clear();
+        lastConvertedDays.clear();
+        lastFieldVisitDays.clear();
+        lastMaintenanceVisitDays.clear();
+        firstMissedMaintenanceDays.clear();
         markDirty();
     }
 
@@ -659,6 +823,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         restoreFieldOverlay(fieldPosition);
         clearInvalidSeedForActualBiome(getServerLevel(), getField(fieldPosition));
         assignments.remove(fieldPosition);
+        lastConvertedDays.remove(fieldPosition);
+        lastFieldVisitDays.remove(fieldPosition);
+        lastMaintenanceVisitDays.remove(fieldPosition);
+        firstMissedMaintenanceDays.remove(fieldPosition);
         markDirty();
         return true;
     }
@@ -678,7 +846,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         final Level level = building.getColony().getWorld();
-        return level != null && level.getBlockState(fieldPosition.below()).is(GreenhouseGardenerMod.climateControlHub.get());
+        return level != null && level.getBlockState(fieldPosition.below()).is(ModBlocks.climateControlHub.get());
     }
 
     /**
@@ -945,6 +1113,50 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         return tags;
     }
 
+    /**
+     * Read persisted colony-day values keyed by field position.
+     *
+     * @param tags serialized day tags
+     * @param target map receiving deserialized days
+     */
+    private static void readDayMap(final ListTag tags, final Map<BlockPos, Long> target)
+    {
+        for (final Tag tag : tags)
+        {
+            final CompoundTag dayTag = (CompoundTag) tag;
+            if (dayTag == null)
+            {
+                continue;
+            }
+
+            NbtUtils.readBlockPos(dayTag, TAG_POS).ifPresent(pos -> target.put(pos.immutable(), dayTag.getLong(TAG_DAY)));
+        }
+    }
+
+    /**
+     * Write persisted colony-day values keyed by field position.
+     *
+     * @param source day map to serialize
+     * @return serialized day tag list
+     */
+    @SuppressWarnings("null")
+    private static ListTag writeDayMap(final Map<BlockPos, Long> source)
+    {
+        final ListTag tags = new ListTag();
+        source.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().asLong())).forEach(entry -> {
+            final CompoundTag dayTag = new CompoundTag();
+            dayTag.put(TAG_POS, NbtUtils.writeBlockPos(entry.getKey()));
+            dayTag.putLong(TAG_DAY, entry.getValue());
+            tags.add(dayTag);
+        });
+        return tags;
+    }
+
+    private static boolean dayEquals(final Long storedDay, final long colonyDay)
+    {
+        return storedDay != null && storedDay == colonyDay;
+    }
+
     public record FieldBiomeAssignment(TemperatureSetting temperature, HumiditySetting humidity)
     {
         public static final FieldBiomeAssignment DEFAULT =
@@ -1010,9 +1222,17 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     @Override
-    public void alterItemsToBeKept(TriConsumer<Predicate<ItemStack>, Integer, Boolean> arg0)
+    public void alterItemsToBeKept(final TriConsumer<Predicate<ItemStack>, Integer, Boolean> consumer)
     {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'alterItemsToBeKept'");
+        consumer.accept(GreenhouseBiomeModule::isBiomeModifierItem, Integer.MAX_VALUE, false);
+    }
+
+    private static boolean isBiomeModifierItem(final ItemStack stack)
+    {
+        return !stack.isEmpty()
+            && (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE)
+                || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE)
+                || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE)
+                || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE));
     }
 }

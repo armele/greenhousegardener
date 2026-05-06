@@ -1,0 +1,33 @@
+{
+  "replace": false,
+  "values": [
+    "greenhousegardener:cucumber",
+    "greenhousegardener:spinach",
+    "greenhousegardener:apple_cider_vinegar",
+    "greenhousegardener:aussie_spread",
+    "greenhousegardener:aussie_toast",
+    "greenhousegardener:bacon_butty",
+    "greenhousegardener:barbecue",
+    "greenhousegardener:barbecue_plate",
+    "greenhousegardener:biscuits",
+    "greenhousegardener:biscuits_and_gravy",
+    "greenhousegardener:chicken_and_waffles",
+    "greenhousegardener:club_sandwich",
+    "greenhousegardener:club_sandwich_plate",
+    "greenhousegardener:coleslaw",
+    "greenhousegardener:corn_oil",
+    "greenhousegardener:doner",
+    "greenhousegardener:fried_chicken",
+    "greenhousegardener:garlic_cheese_grits",
+    "greenhousegardener:mayo",
+    "greenhousegardener:pickles",
+    "greenhousegardener:popcorn",
+    "greenhousegardener:potato_chips",
+    "greenhousegardener:rouladen",
+    "greenhousegardener:sausage",
+    "greenhousegardener:sausage_pizza",
+    "greenhousegardener:sourdough_bread",
+    "greenhousegardener:sourdough_starter",
+    "greenhousegardener:waffles"
+  ]
+}

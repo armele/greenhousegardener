@@ -1,0 +1,9 @@
+{
+  "parent": "minecolonies:block/crops/rice/stage6",
+  "render_type": "cutout",
+  "textures": {
+    "particle": "greenhousegardener:block/crops/cucumber/stage6",
+    "bottom": "greenhousegardener:block/crops/cucumber/stage6",
+    "top": "greenhousegardener:block/crops/cucumber/stage6t"
+  }
+}

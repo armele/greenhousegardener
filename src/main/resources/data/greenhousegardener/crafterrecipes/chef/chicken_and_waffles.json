@@ -1,0 +1,18 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "greenhousegardener:fried_chicken"
+    },
+    {
+      "id": "greenhousegardener:waffles"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:chicken_and_waffles"
+  },
+  "show-tooltip": true
+}

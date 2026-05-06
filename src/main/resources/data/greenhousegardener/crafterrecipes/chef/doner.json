@@ -1,0 +1,21 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "minecolonies:flatbread"
+    },
+    {
+      "id": "minecolonies:kebab"
+    },
+    {
+      "id": "minecolonies:cabbage"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:doner"
+  },
+  "show-tooltip": true
+}

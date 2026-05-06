@@ -1,0 +1,27 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "minecraft:apple"
+    },
+    {
+      "id": "minecraft:sugar"
+    },
+    {
+      "id": "minecolonies:large_water_bottle"
+    }
+  ],
+  "additional-output": [
+    {
+      "id": "minecolonies:large_empty_bottle"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 1,
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:apple_cider_vinegar"
+  },
+  "show-tooltip": true
+}

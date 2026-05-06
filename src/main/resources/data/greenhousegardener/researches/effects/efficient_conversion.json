@@ -1,0 +1,11 @@
+{
+  "effect": true,
+  "name": "More efficient biome conversion.",
+  "levels": [
+    0.20,
+    0.40,
+    0.60,
+    0.80,
+    1.00
+  ]
+}

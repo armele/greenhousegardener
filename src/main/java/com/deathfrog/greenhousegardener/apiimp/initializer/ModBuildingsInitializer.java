@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
 import com.deathfrog.greenhousegardener.api.colony.buildings.views.GreenhouseView;
+import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.core.colony.buildings.ModBuildings;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.BuildingModules;
 import com.minecolonies.api.colony.buildings.registry.BuildingEntry;
@@ -27,7 +28,7 @@ public final class ModBuildingsInitializer
         if (event.getRegistryKey().equals(CommonMinecoloniesAPIImpl.BUILDINGS))
         {
             final BuildingEntry.Builder greenhouseBuilder = new BuildingEntry.Builder();
-            greenhouseBuilder.setBuildingBlock(GreenhouseGardenerMod.blockHutGreenhouse.get());
+            greenhouseBuilder.setBuildingBlock(ModBlocks.blockHutGreenhouse.get());
             greenhouseBuilder.setBuildingProducer(BuildingGreenhouse::new);
             greenhouseBuilder.setBuildingViewProducer(() -> GreenhouseView::new);
             greenhouseBuilder.setRegistryName(ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, ModBuildings.GREENHOUSE_ID));

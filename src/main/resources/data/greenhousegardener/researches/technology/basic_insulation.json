@@ -1,0 +1,37 @@
+{
+    "name": "Basic Insulation",
+    "subtitle": "We can do this more efficiently...",
+    "branch": "minecolonies:technology",
+    "parentResearch": "greenhousegardener:technology/natures_master",
+    "researchLevel": 3,
+    "sortOrder": 0,
+    "exclusiveChildResearch": false,
+    "no-reset": false,
+    "hidden": false,
+    "autostart": false,
+    "instant": false,
+    "requirements": [
+        {
+            "type": "minecolonies:building",
+            "building": "greenhousegardener:greenhouse",
+            "level": 2
+        }
+    ],
+    "costs": [
+        {
+            "count": 32,
+            "item": "minecraft:white_wool"
+        },
+        {
+            "count": 16,
+            "item": "minecraft:clay_ball"
+        }
+    ],
+    "effects": [
+        {
+            "id": "greenhousegardener:effects/efficient_conversion",
+            "level": 1
+        }
+    ],
+    "icon": "greenhousegardener:greenhouse"
+}

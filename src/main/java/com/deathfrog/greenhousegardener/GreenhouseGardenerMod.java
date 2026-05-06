@@ -1,7 +1,5 @@
 package com.deathfrog.greenhousegardener;
 
-import javax.annotation.Nonnull;
-
 import org.slf4j.Logger;
 
 import com.deathfrog.greenhousegardener.api.sounds.ModSoundEvents;
@@ -9,11 +7,10 @@ import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitialize
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModBuildingsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModJobsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.TileEntityInitializer;
-import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub;
-import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutGreenhouse;
+import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
+import com.deathfrog.greenhousegardener.core.items.ModItems;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
 import com.minecolonies.api.creativetab.ModCreativeTabs;
-import com.minecolonies.api.items.ItemBlockHut;
 import com.mojang.logging.LogUtils;
 
 import net.neoforged.bus.api.IEventBus;
@@ -25,11 +22,6 @@ import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(GreenhouseGardenerMod.MODID)
@@ -38,30 +30,7 @@ public class GreenhouseGardenerMod {
     public static final String MODID = "greenhousegardener";
     // Directly reference a slf4j logger
     public static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "greenhousegardener" namespace
-    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
-    // Create a Deferred Register to hold Items which will all be registered under the "greenhousegardener" namespace
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
 
-    /*
-    * BLOCKS
-    */
-    public static final DeferredBlock<BlockHutGreenhouse> blockHutGreenhouse = BLOCKS.register(BlockHutGreenhouse.HUT_NAME, () -> new BlockHutGreenhouse());
-    public static final DeferredBlock<BlockClimateControlHub> climateControlHub = BLOCKS.register(BlockClimateControlHub.BLOCK_NAME, () -> new BlockClimateControlHub());
-
-    /*
-    * ITEMS
-    */
-    @SuppressWarnings("null")
-    public static final @Nonnull DeferredItem<ItemBlockHut> blockHutGreenhouseItem = ITEMS.register(
-      BlockHutGreenhouse.HUT_NAME,
-      () -> new ItemBlockHut(blockHutGreenhouse.get(), new Item.Properties()));
-
-    @SuppressWarnings("null")
-    public static final @Nonnull DeferredItem<BlockItem> climateControlHubItem = ITEMS.register(
-      BlockClimateControlHub.BLOCK_NAME,
-      () -> new BlockItem(climateControlHub.get(), new Item.Properties()));
-  
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public GreenhouseGardenerMod(IEventBus modEventBus, ModContainer modContainer) {
@@ -70,10 +39,8 @@ public class GreenhouseGardenerMod {
         modEventBus.addListener(ModBuildingsInitializer::registerBuildings);
         modEventBus.addListener(NetworkHandler::register);
 
-        // Register the Deferred Register to the mod event bus so blocks get registered
-        BLOCKS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so items get registered
-        ITEMS.register(modEventBus);
+        ModBlocks.register(modEventBus);
+        ModItems.register(modEventBus);
         TileEntityInitializer.BLOCK_ENTITIES.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in.
@@ -105,8 +72,39 @@ public class GreenhouseGardenerMod {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey().equals(ModCreativeTabs.HUTS.getKey()))
         {
-            event.accept(blockHutGreenhouseItem);
-            event.accept(climateControlHubItem);
+            event.accept(ModItems.blockHutGreenhouseItem);
+            event.accept(ModItems.climateControlHubItem);
+        }
+        else if (event.getTabKey().equals(ModCreativeTabs.FOOD.getKey()))
+        {
+            event.accept(ModItems.cucumber);
+            event.accept(ModItems.spinach);
+            event.accept(ModItems.appleCiderVinegar);
+            event.accept(ModItems.aussieSpread);
+            event.accept(ModItems.aussieToast);
+            event.accept(ModItems.baconButty);
+            event.accept(ModItems.barbecue);
+            event.accept(ModItems.barbecuePlate);
+            event.accept(ModItems.biscuits);
+            event.accept(ModItems.biscuitsAndGravy);
+            event.accept(ModItems.chickenAndWaffles);
+            event.accept(ModItems.clubSandwich);
+            event.accept(ModItems.clubSandwichPlate);
+            event.accept(ModItems.coleslaw);
+            event.accept(ModItems.cornOil);
+            event.accept(ModItems.doner);
+            event.accept(ModItems.friedChicken);
+            event.accept(ModItems.garlicCheeseGrits);
+            event.accept(ModItems.mayo);
+            event.accept(ModItems.pickles);
+            event.accept(ModItems.popcorn);
+            event.accept(ModItems.potatoChips);
+            event.accept(ModItems.rouladen);
+            event.accept(ModItems.sausage);
+            event.accept(ModItems.sausagePizza);
+            event.accept(ModItems.sourdoughBread);
+            event.accept(ModItems.sourdoughStarter);
+            event.accept(ModItems.waffles);
         }
     }
 

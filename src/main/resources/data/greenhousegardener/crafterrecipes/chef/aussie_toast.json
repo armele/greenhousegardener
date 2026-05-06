@@ -1,0 +1,18 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "greenhousegardener:aussie_spread"
+    },
+    {
+      "id": "minecraft:bread"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 1,
+  "result": {
+    "id": "greenhousegardener:aussie_toast"
+  },
+  "show-tooltip": true
+}

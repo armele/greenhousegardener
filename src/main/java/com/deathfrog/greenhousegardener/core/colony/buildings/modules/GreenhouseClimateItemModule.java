@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.deathfrog.greenhousegardener.Config;
 import com.deathfrog.greenhousegardener.core.ModTags;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
@@ -225,7 +226,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_HIGH)
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_HIGH))
         {
-            return 7;
+            return Config.climateControlUnitsHigh.get();
         }
 
         if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_MEDIUM)
@@ -233,7 +234,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_MEDIUM)
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_MEDIUM))
         {
-            return 3;
+            return Config.climateControlUnitsMedium.get();
         }
 
         if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_LOW)
@@ -241,7 +242,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_LOW)
             || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_LOW))
         {
-            return 1;
+            return Config.climateControlUnitsLow.get();
         }
 
         return 0;

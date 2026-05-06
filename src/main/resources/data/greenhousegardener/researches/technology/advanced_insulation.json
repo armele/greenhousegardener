@@ -1,0 +1,37 @@
+{
+    "name": "Advanced Insulation",
+    "subtitle": "We can do this even more efficiently...",
+    "branch": "minecolonies:technology",
+    "parentResearch": "greenhousegardener:technology/basic_insulation",
+    "researchLevel": 4,
+    "sortOrder": 0,
+    "exclusiveChildResearch": false,
+    "no-reset": false,
+    "hidden": false,
+    "autostart": false,
+    "instant": false,
+    "requirements": [
+        {
+            "type": "minecolonies:building",
+            "building": "greenhousegardener:greenhouse",
+            "level": 3
+        }
+    ],
+    "costs": [
+        {
+            "count": 64,
+            "item": "minecraft:white_wool"
+        },
+        {
+            "count": 16,
+            "item": "minecraft:terracotta"
+        }
+    ],
+    "effects": [
+        {
+            "id": "greenhousegardener:effects/efficient_conversion",
+            "level": 3
+        }
+    ],
+    "icon": "greenhousegardener:greenhouse"
+}

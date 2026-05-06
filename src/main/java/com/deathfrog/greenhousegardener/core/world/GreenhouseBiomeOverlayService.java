@@ -10,7 +10,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.deathfrog.greenhousegardener.Config;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 
@@ -33,6 +32,15 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 public final class GreenhouseBiomeOverlayService
 {
     private static final int DEFAULT_VERTICAL_RANGE = 8;
+    private static final ResourceLocation BIOME_COLD_DRY = ResourceLocation.withDefaultNamespace("snowy_slopes");
+    private static final ResourceLocation BIOME_COLD_NORMAL = ResourceLocation.withDefaultNamespace("snowy_plains");
+    private static final ResourceLocation BIOME_COLD_HUMID = ResourceLocation.withDefaultNamespace("old_growth_pine_taiga");
+    private static final ResourceLocation BIOME_TEMPERATE_DRY = ResourceLocation.withDefaultNamespace("savanna");
+    private static final ResourceLocation BIOME_TEMPERATE_NORMAL = ResourceLocation.withDefaultNamespace("plains");
+    private static final ResourceLocation BIOME_TEMPERATE_HUMID = ResourceLocation.withDefaultNamespace("swamp");
+    private static final ResourceLocation BIOME_HOT_DRY = ResourceLocation.withDefaultNamespace("desert");
+    private static final ResourceLocation BIOME_HOT_NORMAL = ResourceLocation.withDefaultNamespace("sparse_jungle");
+    private static final ResourceLocation BIOME_HOT_HUMID = ResourceLocation.withDefaultNamespace("jungle");
 
     private GreenhouseBiomeOverlayService()
     {
@@ -221,38 +229,36 @@ public final class GreenhouseBiomeOverlayService
      * @param climate the desired greenhouse climate
      * @return the resource location of the overlay biome
      */
-    @SuppressWarnings("null")
     public static ResourceLocation biomeFor(final GreenhouseClimate climate)
     {
-        final String biomeId = switch (climate.temperature())
+        return switch (climate.temperature())
         {
             case COLD -> switch (climate.humidity())
             {
-                case DRY -> Config.coldDry.get();
-                case NORMAL -> Config.coldNormal.get();
-                case HUMID -> Config.coldHumid.get();
+                case DRY -> BIOME_COLD_DRY;
+                case NORMAL -> BIOME_COLD_NORMAL;
+                case HUMID -> BIOME_COLD_HUMID;
             };
             case TEMPERATE -> switch (climate.humidity())
             {
-                case DRY -> Config.temperateDry.get();
-                case NORMAL -> Config.temperateNormal.get();
-                case HUMID -> Config.temperateHumid.get();
+                case DRY -> BIOME_TEMPERATE_DRY;
+                case NORMAL -> BIOME_TEMPERATE_NORMAL;
+                case HUMID -> BIOME_TEMPERATE_HUMID;
             };
             case HOT -> switch (climate.humidity())
             {
-                case DRY -> Config.hotDry.get();
-                case NORMAL -> Config.hotNormal.get();
-                case HUMID -> Config.hotHumid.get();
+                case DRY -> BIOME_HOT_DRY;
+                case NORMAL -> BIOME_HOT_NORMAL;
+                case HUMID -> BIOME_HOT_HUMID;
             };
         };
-        return ResourceLocation.tryParse(biomeId);
     }
 
     /**
-     * Resolve a configured reference biome back to its exact greenhouse climate.
+     * Resolve a reference biome back to its exact greenhouse climate.
      *
      * @param biomeId biome id to classify
-     * @return the configured greenhouse climate, or empty when the biome is not a reference biome
+     * @return the greenhouse climate, or empty when the biome is not a reference biome
      */
     public static Optional<GreenhouseClimate> climateFor(final ResourceLocation biomeId)
     {

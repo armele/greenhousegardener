@@ -8,6 +8,7 @@ public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, 
 {
     public static final int COUNTER_TRIGGER = 0;
     protected int noGlassCounter = 0;
+    protected boolean biomeLedgerShortage = false;
 
     public JobsHorticulturist(ICitizenData entity)
     {
@@ -49,5 +50,25 @@ public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, 
     public void resetNoGlassCounter()
     {
         noGlassCounter = 0;
+    }
+
+    /**
+     * Check if the biome ledger shortage interaction is still valid.
+     *
+     * @return true when a greenhouse field still lacks climate material ledger balance
+     */
+    public boolean checkBiomeLedgerShortage()
+    {
+        return biomeLedgerShortage;
+    }
+
+    /**
+     * Update whether a greenhouse field is blocked by insufficient climate material ledger balance.
+     *
+     * @param shortage true when a shortage is currently blocking field transformation
+     */
+    public void setBiomeLedgerShortage(final boolean shortage)
+    {
+        biomeLedgerShortage = shortage;
     }
 }

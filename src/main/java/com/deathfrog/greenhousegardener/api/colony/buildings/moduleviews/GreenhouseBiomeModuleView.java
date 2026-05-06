@@ -20,6 +20,7 @@ import net.minecraft.world.item.ItemStack;
 public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
 {
     private int supportedFieldCount;
+    private int ownedFieldCount;
     private int modifiedBiomeLimit;
     private int modifiedBiomeCount;
     private int hotBalance;
@@ -32,6 +33,7 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
     public void deserialize(@NotNull RegistryFriendlyByteBuf buf)
     {
         supportedFieldCount = buf.readInt();
+        ownedFieldCount = buf.readInt();
         modifiedBiomeLimit = buf.readInt();
         modifiedBiomeCount = buf.readInt();
         hotBalance = buf.readInt();
@@ -81,6 +83,11 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
     public int getSupportedFieldCount()
     {
         return supportedFieldCount;
+    }
+
+    public int getOwnedFieldCount()
+    {
+        return ownedFieldCount;
     }
 
     public int getModifiedBiomeLimit()
@@ -168,6 +175,7 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
                     field.naturalTemperature(),
                     field.naturalHumidity(),
                     owned));
+                ownedFieldCount += owned ? 1 : -1;
                 return;
             }
         }

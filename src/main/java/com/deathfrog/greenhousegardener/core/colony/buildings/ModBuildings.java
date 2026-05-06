@@ -1,6 +1,6 @@
 package com.deathfrog.greenhousegardener.core.colony.buildings;
 
-import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.minecolonies.api.blocks.AbstractBlockHut;
 import com.minecolonies.api.colony.buildings.registry.BuildingEntry;
 import org.jetbrains.annotations.NotNull;
@@ -21,7 +21,7 @@ public class ModBuildings
     {
         return new AbstractBlockHut[] 
         {
-            GreenhouseGardenerMod.blockHutGreenhouse.get(),
+            ModBlocks.blockHutGreenhouse.get(),
         };
     }
 }
