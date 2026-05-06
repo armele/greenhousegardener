@@ -8,9 +8,13 @@ import com.deathfrog.greenhousegardener.core.colony.buildings.modules.Greenhouse
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseBiomeFieldMessage;
 import com.ldtteam.blockui.Pane;
 import com.ldtteam.blockui.PaneBuilders;
+import com.ldtteam.blockui.controls.AbstractTextBuilder;
+import com.ldtteam.blockui.controls.CheckBox;
+import com.ldtteam.blockui.controls.Image;
 import com.ldtteam.blockui.controls.ItemIcon;
 import com.ldtteam.blockui.controls.Text;
 import com.ldtteam.blockui.views.DropDownList;
+import com.ldtteam.blockui.views.ScrollingList;
 import com.minecolonies.core.client.gui.AbstractModuleWindow;
 
 import net.minecraft.core.BlockPos;
@@ -24,7 +28,17 @@ import net.minecraft.world.item.ItemStack;
  */
 public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModuleView>
 {
-    private static final int MAX_FIELD_ROWS = 4;
+    private static final String FIELD_LIST = "fields";
+    private static final String IMAGE_HELP = "help";
+    private static final String BALANCE_HOT = "hotBalance";
+    private static final String BALANCE_COLD = "coldBalance";
+    private static final String BALANCE_HUMID = "humidBalance";
+    private static final String BALANCE_DRY = "dryBalance";
+    private static final String FIELD_SEED = "seed";
+    private static final String FIELD_OWNED = "owned";
+    private static final String FIELD_TEMPERATURE = "temp";
+    private static final String FIELD_HUMIDITY = "humidity";
+    private final ScrollingList fieldList;
     private boolean updatingFields = false;
 
     /**
@@ -35,6 +49,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     public WindowBiomeModule(final GreenhouseBiomeModuleView moduleView)
     {
         super(moduleView, ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "gui/layouthuts/layoutbiomemodule.xml"));
+        this.fieldList = window.findPaneOfTypeByID(FIELD_LIST, ScrollingList.class);
     }
 
     /**
@@ -44,26 +59,14 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     public void onOpened()
     {
         super.onOpened();
-        configureDropdowns();
+
+        final Image help = findPaneOfTypeByID(IMAGE_HELP, Image.class);
+        final AbstractTextBuilder.TooltipBuilder helpTipBuilder = PaneBuilders.tooltipBuilder().hoverPane(help);
+        helpTipBuilder.append(Component.translatable("com.greenhousegardener.biomesettings.help"));
+        helpTipBuilder.build();
+
+        updateBalances();
         updateFields();
-    }
-
-    /**
-     * Connects each row's temperature and humidity dropdown to its data provider and change handler.
-     */
-    private void configureDropdowns()
-    {
-        for (int fieldIndex = 0; fieldIndex < MAX_FIELD_ROWS; fieldIndex++)
-        {
-            final int index = fieldIndex;
-            final DropDownList tempDropdown = window.findPaneOfTypeByID("temp" + fieldIndex, DropDownList.class);
-            tempDropdown.setDataProvider(new TemperatureDataProvider());
-            tempDropdown.setHandler(dropdown -> setTemperature(index, TemperatureSetting.values()[dropdown.getSelectedIndex()]));
-
-            final DropDownList humidityDropdown = window.findPaneOfTypeByID("humidity" + fieldIndex, DropDownList.class);
-            humidityDropdown.setDataProvider(new HumidityDataProvider());
-            humidityDropdown.setHandler(dropdown -> setHumidity(index, HumiditySetting.values()[dropdown.getSelectedIndex()]));
-        }
     }
 
     /**
@@ -73,7 +76,20 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     public void onUpdate()
     {
         super.onUpdate();
+        updateBalances();
         updateFields();
+    }
+
+    /**
+     * Refreshes the climate modification balances shown above the field table.
+     */
+    @SuppressWarnings("null")
+    private void updateBalances()
+    {
+        findPaneOfTypeByID(BALANCE_HOT, Text.class).setText(Component.literal(String.valueOf(moduleView.getHotBalance())));
+        findPaneOfTypeByID(BALANCE_COLD, Text.class).setText(Component.literal(String.valueOf(moduleView.getColdBalance())));
+        findPaneOfTypeByID(BALANCE_HUMID, Text.class).setText(Component.literal(String.valueOf(moduleView.getHumidBalance())));
+        findPaneOfTypeByID(BALANCE_DRY, Text.class).setText(Component.literal(String.valueOf(moduleView.getDryBalance())));
     }
 
     /**
@@ -85,7 +101,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     private void setTemperature(final int fieldIndex, final TemperatureSetting temperature)
     {
         final FieldBiomeView field = getField(fieldIndex);
-        if (field == null || updatingFields || field.temperature() == temperature)
+        if (field == null || updatingFields || !field.owned() || field.temperature() == temperature)
         {
             return;
         }
@@ -102,7 +118,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     private void setHumidity(final int fieldIndex, final HumiditySetting humidity)
     {
         final FieldBiomeView field = getField(fieldIndex);
-        if (field == null || updatingFields || field.humidity() == humidity)
+        if (field == null || updatingFields || !field.owned() || field.humidity() == humidity)
         {
             return;
         }
@@ -119,48 +135,114 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      */
     private void setAssignment(final FieldBiomeView field, final TemperatureSetting temperature, final HumiditySetting humidity)
     {
-        moduleView.setFieldAssignment(field.fieldIndex(), temperature, humidity);
-        new SetGreenhouseBiomeFieldMessage(buildingView.getPosition(), field.fieldIndex(), temperature.ordinal(), humidity.ordinal()).sendToServer();
+        if (!canUseModifiedBiomeSlot(field, temperature, humidity))
+        {
+            updateFields();
+            return;
+        }
+
+        moduleView.setFieldAssignment(field.position(), temperature, humidity);
+        new SetGreenhouseBiomeFieldMessage(buildingView.getPosition(), field.position(), temperature.ordinal(), humidity.ordinal(), field.owned()).sendToServer();
+        updateFields();
+    }
+
+    /**
+     * Stores a new ownership value locally, sends it to the server, and refreshes the visible rows.
+     *
+     * @param fieldIndex zero-based field row index
+     * @param owned true when this greenhouse should claim the field
+     */
+    private void setOwnership(final int fieldIndex, final boolean owned)
+    {
+        final FieldBiomeView field = getField(fieldIndex);
+        if (field == null || updatingFields || field.owned() == owned)
+        {
+            return;
+        }
+        if (owned && !canClaimMoreFields())
+        {
+            updateFields();
+            return;
+        }
+
+        moduleView.setFieldOwned(field.position(), owned);
+        new SetGreenhouseBiomeFieldMessage(buildingView.getPosition(), field.position(), field.temperature().ordinal(), field.humidity().ordinal(), owned).sendToServer();
         updateFields();
     }
 
     /**
      * Refreshes field rows, seed icons, dropdown selections, and field-position tooltips.
      */
-    @SuppressWarnings("null")
     private void updateFields()
     {
         updatingFields = true;
-        for (int fieldIndex = 0; fieldIndex < MAX_FIELD_ROWS; fieldIndex++)
+        fieldList.enable();
+        fieldList.show();
+        fieldList.setDataProvider(new ScrollingList.DataProvider()
         {
-            final Pane row = window.findPaneByID("field" + fieldIndex);
-            if (row == null)
+            @Override
+            public int getElementCount()
             {
-                continue;
+                return moduleView.getFields().size();
             }
 
-            final FieldBiomeView field = getField(fieldIndex);
-            if (fieldIndex >= moduleView.getSupportedFieldCount() || field == null)
+            @Override
+            public void updateElement(final int index, final Pane rowPane)
+            {
+                updateFieldRow(index, rowPane);
+            }
+        });
+        updatingFields = false;
+    }
+
+    /**
+     * Refresh a single field row in the scrollable list.
+     *
+     * @param fieldIndex zero-based field row index
+     * @param row row pane to update
+     */
+    private void updateFieldRow(final int fieldIndex, final Pane row)
+    {
+        final boolean wasUpdatingFields = updatingFields;
+        updatingFields = true;
+        final FieldBiomeView field = getField(fieldIndex);
+        try
+        {
+            if (field == null)
             {
                 row.hide();
-                continue;
+                return;
             }
 
             row.show();
-            final Text fieldName = row.findPaneOfTypeByID("fieldName" + fieldIndex, Text.class);
-            fieldName.setText(Component.literal(String.valueOf(fieldIndex + 1)));
-            setSelectedDropdownIndex(row.findPaneOfTypeByID("temp" + fieldIndex, DropDownList.class), field.temperature().ordinal());
-            setSelectedDropdownIndex(row.findPaneOfTypeByID("humidity" + fieldIndex, DropDownList.class), field.humidity().ordinal());
+            final DropDownList tempDropdown = row.findPaneOfTypeByID(FIELD_TEMPERATURE, DropDownList.class);
+            final DropDownList humidityDropdown = row.findPaneOfTypeByID(FIELD_HUMIDITY, DropDownList.class);
+            tempDropdown.setDataProvider(new TemperatureDataProvider());
+            humidityDropdown.setDataProvider(new HumidityDataProvider());
+            setSelectedDropdownIndex(tempDropdown, field.temperature().ordinal());
+            setSelectedDropdownIndex(humidityDropdown, field.humidity().ordinal());
+            tempDropdown.setEnabled(field.owned());
+            humidityDropdown.setEnabled(field.owned());
+            tempDropdown.setHandler(dropdown -> setTemperature(fieldIndex, TemperatureSetting.values()[dropdown.getSelectedIndex()]));
+            humidityDropdown.setHandler(dropdown -> setHumidity(fieldIndex, HumiditySetting.values()[dropdown.getSelectedIndex()]));
 
-            final ItemIcon seedIcon = row.findPaneOfTypeByID("seed" + fieldIndex, ItemIcon.class);
+            final CheckBox ownedCheckbox = row.findPaneOfTypeByID(FIELD_OWNED, CheckBox.class);
+            ownedCheckbox.setChecked(field.owned());
+            ownedCheckbox.setEnabled(field.owned() || canClaimMoreFields());
+            ownedCheckbox.setHandler(button -> setOwnership(fieldIndex, ownedCheckbox.isChecked()));
+
+            final ItemIcon seedIcon = row.findPaneOfTypeByID(FIELD_SEED, ItemIcon.class);
             seedIcon.setItem(field.seed().isEmpty() ? ItemStack.EMPTY : field.seed());
 
-            addPositionTooltip(fieldName, field.position());
-            addPositionTooltip(row.findPaneOfTypeByID("temp" + fieldIndex, DropDownList.class), field.position());
-            addPositionTooltip(row.findPaneOfTypeByID("humidity" + fieldIndex, DropDownList.class), field.position());
+            addPositionTooltip(tempDropdown, field.position());
+            addPositionTooltip(humidityDropdown, field.position());
             addPositionTooltip(seedIcon, field.position());
+            addPositionTooltip(ownedCheckbox, field.position());
         }
-        updatingFields = false;
+        finally
+        {
+            updatingFields = wasUpdatingFields;
+        }
     }
 
     /**
@@ -185,10 +267,100 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      */
     private FieldBiomeView getField(final int fieldIndex)
     {
-        return moduleView.getFields().stream()
-            .filter(field -> field.fieldIndex() == fieldIndex)
-            .findFirst()
-            .orElse(null);
+        if (fieldIndex < 0 || fieldIndex >= moduleView.getFields().size())
+        {
+            return null;
+        }
+
+        return moduleView.getFields().get(fieldIndex);
+    }
+
+    /**
+     * Check whether another unowned field can be claimed at this building level.
+     *
+     * @return true when the client-side owned count is below the supported field cap
+     */
+    private boolean canClaimMoreFields()
+    {
+        return ownedFieldCount() < moduleView.getSupportedFieldCount();
+    }
+
+    /**
+     * Check whether the client can optimistically send an assignment that consumes a new modified-biome slot.
+     *
+     * @param field field row being changed
+     * @param temperature selected temperature setting
+     * @param humidity selected humidity setting
+     * @return true when the change should be allowed client-side
+     */
+    private boolean canUseModifiedBiomeSlot(final FieldBiomeView field, final TemperatureSetting temperature, final HumiditySetting humidity)
+    {
+        if (field == null)
+        {
+            return false;
+        }
+
+        return isModified(field) || !isModified(field, temperature, humidity) || modifiedBiomeCount() < moduleView.getModifiedBiomeLimit();
+    }
+
+    /**
+     * Check whether a view row consumes a modified-biome slot.
+     *
+     * @param field field row to inspect
+     * @return true when the visible assignment differs from its natural climate
+     */
+    private static boolean isModified(final FieldBiomeView field)
+    {
+        return isModified(field, field.temperature(), field.humidity());
+    }
+
+    /**
+     * Check whether a proposed assignment differs from the server-provided natural climate.
+     *
+     * @param field field row containing natural climate data
+     * @param temperature selected temperature setting
+     * @param humidity selected humidity setting
+     * @return true when the assignment differs from the field's natural climate
+     */
+    private static boolean isModified(final FieldBiomeView field, final TemperatureSetting temperature, final HumiditySetting humidity)
+    {
+        return temperature != field.naturalTemperature() || humidity != field.naturalHumidity();
+    }
+
+    /**
+     * Count client-visible owned fields that currently consume modified-biome slots.
+     *
+     * @return current client-side modified-biome slot usage
+     */
+    private int modifiedBiomeCount()
+    {
+        int count = 0;
+        for (final FieldBiomeView field : moduleView.getFields())
+        {
+            if (field.owned() && isModified(field))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Count the fields currently claimed in the client-side view.
+     *
+     * @return owned field count
+     */
+    private int ownedFieldCount()
+    {
+        int count = 0;
+        for (final FieldBiomeView field : moduleView.getFields())
+        {
+            if (field.owned())
+            {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

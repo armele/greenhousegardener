@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseClimateItemModuleView;
-import com.deathfrog.greenhousegardener.core.ModTags;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage.ClimateItemAction;
@@ -173,7 +173,7 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
             public void updateElement(final int index, final Pane rowPane)
             {
                 final ItemStack stack = items.get(index).getItemStack().copy();
-                String cmuLabel = String.valueOf(climateModificationUnit(stack));
+                String cmuLabel = String.valueOf(GreenhouseClimateItemModule.climateModificationUnit(stack));
                 stack.setCount(items.get(index).getAmount());
                 rowPane.findPaneOfTypeByID(ITEM_NAME, Text.class).setText(stack.getHoverName());
                 rowPane.findPaneOfTypeByID(ITEM_CLIMATE_MODIFICATION_UNIT, Text.class).setText(Component.literal(cmuLabel == null ? "None" : cmuLabel));
@@ -182,38 +182,4 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
         });
     }
 
-    /**
-     * Resolve the climate modification unit for a selected item from its tier tag.
-     *
-     * @param stack selected climate item
-     * @return unit value shown in the item row
-     */
-    private static int climateModificationUnit(final ItemStack stack)
-    {
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_HIGH))
-        {
-            return 7;
-        }
-
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_MEDIUM))
-        {
-            return 3;
-        }
-
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_LOW))
-        {
-            return 1;
-        }
-
-        return 0;
-    }
 }

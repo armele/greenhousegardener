@@ -3,35 +3,55 @@ package com.deathfrog.greenhousegardener.core.colony.buildings.modules;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+
+import org.apache.logging.log4j.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
-import com.minecolonies.api.blocks.ModBlocks;
+
+import com.deathfrog.greenhousegardener.Config;
+import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.ModResearch;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
+import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
+import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
 import com.minecolonies.api.colony.buildingextensions.IBuildingExtension;
+import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
+import com.minecolonies.api.colony.buildings.modules.IAltersRequiredItems;
+import com.minecolonies.api.colony.buildings.modules.IBuildingEventsModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
-import com.minecolonies.core.blocks.BlockScarecrow;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
-import net.minecraft.core.HolderLookup;
+import com.minecolonies.core.items.ItemCrop;
+
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.QuartPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Tuple;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.biome.Biome;
 
-public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule
+public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule, IBuildingEventsModule, IAltersRequiredItems
 {
     private static final int MAX_FIELD_SLOTS = 4;
 
     private static final String TAG_ASSIGNMENTS = "assignments";
-    private static final String TAG_FIELD = "field";
+    private static final String TAG_FIELD_POS = "fieldPos";
+    private static final String TAG_OWNED_FIELDS = "ownedFields";
     private static final String TAG_TEMPERATURE = "temperature";
     private static final String TAG_HUMIDITY = "humidity";
     private static final String TAG_NATURAL_BIOMES = "naturalBiomes";
@@ -39,9 +59,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_POS = "pos";
     private static final String TAG_BIOME = "biome";
 
-    private final Map<Integer, FieldBiomeAssignment> assignments = new HashMap<>();
-    private final Map<net.minecraft.core.BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
-    private final Map<net.minecraft.core.BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
+    private final Map<BlockPos, FieldBiomeAssignment> assignments = new HashMap<>();
+    private final Set<BlockPos> ownedFields = new HashSet<>();
+    private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
+    private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
 
     public GreenhouseBiomeModule()
     {
@@ -51,16 +72,27 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     @Override
     public void deserializeNBT(@NotNull final HolderLookup.Provider provider, final CompoundTag compound)
     {
+        ownedFields.clear();
+        for (final Tag tag : compound.getList(TAG_OWNED_FIELDS, Tag.TAG_COMPOUND))
+        {
+            final CompoundTag fieldTag = (CompoundTag) tag;
+
+            if (fieldTag != null)
+            {
+                NbtUtils.readBlockPos(fieldTag, TAG_POS).ifPresent(pos -> ownedFields.add(pos.immutable()));
+            }
+        }
+
         assignments.clear();
         for (final Tag tag : compound.getList(TAG_ASSIGNMENTS, Tag.TAG_COMPOUND))
         {
             final CompoundTag assignmentTag = (CompoundTag) tag;
-            final int fieldIndex = assignmentTag.getInt(TAG_FIELD);
-            if (fieldIndex >= 0 && fieldIndex < MAX_FIELD_SLOTS)
+            if (assignmentTag != null)
             {
-                assignments.put(fieldIndex,
-                    new FieldBiomeAssignment(TemperatureSetting.bySerializedName(assignmentTag.getString(TAG_TEMPERATURE)),
-                        HumiditySetting.bySerializedName(assignmentTag.getString(TAG_HUMIDITY))));
+                NbtUtils.readBlockPos(assignmentTag, TAG_FIELD_POS).ifPresent(pos -> assignments.put(pos.immutable(),
+                    new FieldBiomeAssignment(
+                        TemperatureSetting.bySerializedName(assignmentTag.getString(TAG_TEMPERATURE)),
+                        HumiditySetting.bySerializedName(assignmentTag.getString(TAG_HUMIDITY)))));
             }
         }
 
@@ -71,26 +103,35 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         readBiomeMap(compound.getList(TAG_APPLIED_BIOMES, Tag.TAG_COMPOUND), appliedBiomes);
     }
 
+    @SuppressWarnings("null")
     @Override
     public void serializeNBT(@NotNull final HolderLookup.Provider provider, final CompoundTag compound)
     {
+        final ListTag ownedTags = new ListTag();
+        ownedFields.stream().sorted(Comparator.comparing(BlockPos::asLong)).forEach(pos -> {
+            final CompoundTag fieldTag = new CompoundTag();
+            fieldTag.put(TAG_POS, NbtUtils.writeBlockPos(pos));
+            ownedTags.add(fieldTag);
+        });
+        compound.put(TAG_OWNED_FIELDS, ownedTags);
+
         final ListTag assignmentTags = new ListTag();
-        assignments.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+        assignments.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().asLong())).forEach(entry -> {
             final CompoundTag assignmentTag = new CompoundTag();
-            assignmentTag.putInt(TAG_FIELD, entry.getKey());
+            assignmentTag.put(TAG_FIELD_POS, NbtUtils.writeBlockPos(entry.getKey()));
             assignmentTag.putString(TAG_TEMPERATURE, entry.getValue().temperature().getSerializedName() + "");
             assignmentTag.putString(TAG_HUMIDITY, entry.getValue().humidity().getSerializedName() + "");
             assignmentTags.add(assignmentTag);
         });
         compound.put(TAG_ASSIGNMENTS, assignmentTags);
 
-        ListTag natural = writeBiomeMap(naturalBiomes);
+        final ListTag natural = writeBiomeMap(naturalBiomes);
         if (natural != null)
         {
             compound.put(TAG_NATURAL_BIOMES, natural);
         }
 
-        ListTag altered = writeBiomeMap(appliedBiomes);
+        final ListTag altered = writeBiomeMap(appliedBiomes);
         if (altered != null)
         {
             compound.put(TAG_APPLIED_BIOMES, altered);
@@ -102,43 +143,215 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     public void serializeToView(@NotNull final RegistryFriendlyByteBuf buf)
     {
         final int supportedFields = getSupportedFieldCount();
-        ensureFieldExtensionsRegistered(supportedFields);
-        final List<FarmField> fields = getManagedFields(supportedFields);
+        cleanupInvalidOwnedFields();
+        final List<FarmField> fields = getVisibleFields();
+        final GreenhouseTemperatureModule temperatureModule = building == null ? null : building.getModule(GreenhouseTemperatureModule.class, ignored -> true);
+        final GreenhouseHumidityModule humidityModule = building == null ? null : building.getModule(GreenhouseHumidityModule.class, ignored -> true);
+        final ServerLevel level = getServerLevel();
 
         buf.writeInt(supportedFields);
+        buf.writeInt(getModifiedBiomeLimit());
+        buf.writeInt(getModifiedBiomeCount(level));
+        buf.writeInt(ledgerBalance(temperatureModule, ClimateItemList.INCREASE));
+        buf.writeInt(ledgerBalance(temperatureModule, ClimateItemList.DECREASE));
+        buf.writeInt(ledgerBalance(humidityModule, ClimateItemList.INCREASE));
+        buf.writeInt(ledgerBalance(humidityModule, ClimateItemList.DECREASE));
         buf.writeInt(fields.size());
         for (int i = 0; i < fields.size(); i++)
         {
             final FarmField field = fields.get(i);
-            final FieldBiomeAssignment assignment = getAssignment(i);
+            final BlockPos fieldPosition = field.getPosition().immutable();
+            final FieldBiomeAssignment assignment = getAssignment(fieldPosition);
+            final GreenhouseClimate naturalClimate = naturalClimate(level, fieldPosition);
             buf.writeInt(i);
-            buf.writeBlockPos(field.getPosition());
+            buf.writeBlockPos(fieldPosition);
             ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, field.getSeed());
             buf.writeEnum(assignment.temperature());
             buf.writeEnum(assignment.humidity());
+            buf.writeEnum(naturalClimate.temperature());
+            buf.writeEnum(naturalClimate.humidity());
+            buf.writeBoolean(isOwned(fieldPosition));
         }
     }
 
-    public void setAssignment(final int fieldIndex, final TemperatureSetting temperature, final HumiditySetting humidity)
+    /**
+     * Read a climate item module balance without requiring the module to exist.
+     *
+     * @param module climate item module, or null when unavailable
+     * @param list increase or decrease ledger
+     * @return current ledger balance, or zero when the module is unavailable
+     */
+    private static int ledgerBalance(final GreenhouseClimateItemModule module, final ClimateItemList list)
     {
-        if (fieldIndex < 0 || fieldIndex >= getSupportedFieldCount())
+        return module == null ? 0 : module.getLedgerBalance(list);
+    }
+
+    /**
+     * Set the requested climate assignment for an owned field.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param temperature requested temperature setting
+     * @param humidity requested humidity setting
+     */
+    public void setAssignment(final BlockPos fieldPosition, final TemperatureSetting temperature, final HumiditySetting humidity)
+    {
+        if (fieldPosition == null || !isOwned(fieldPosition))
         {
             return;
         }
 
-        final FieldBiomeAssignment current = getAssignment(fieldIndex);
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        final FieldBiomeAssignment current = getAssignment(immutablePosition);
         if (current.temperature() == temperature && current.humidity() == humidity)
         {
+            clearInvalidSeedForAssignedClimate(immutablePosition);
             return;
         }
 
-        assignments.put(fieldIndex, new FieldBiomeAssignment(temperature, humidity));
+        final FieldBiomeAssignment assignment = new FieldBiomeAssignment(temperature, humidity);
+        if (!canSetAssignment(immutablePosition, assignment))
+        {
+            return;
+        }
+
+        assignments.put(immutablePosition, assignment);
+        clearInvalidSeedForClimate(getServerLevel(), getField(immutablePosition), climate(assignment));
         markDirty();
     }
 
-    public FieldBiomeAssignment getAssignment(final int fieldIndex)
+    /**
+     * Get the requested climate assignment for a field.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return the saved assignment, or the default climate assignment
+     */
+    public FieldBiomeAssignment getAssignment(final BlockPos fieldPosition)
     {
-        return assignments.getOrDefault(fieldIndex, FieldBiomeAssignment.DEFAULT);
+        return assignments.getOrDefault(fieldPosition, FieldBiomeAssignment.DEFAULT);
+    }
+
+    /**
+     * Claim or release an eligible field for this greenhouse.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param owned true to claim the field, false to release it
+     * @return true when ownership changed
+     */
+    public boolean setFieldOwned(final BlockPos fieldPosition, final boolean owned)
+    {
+        if (fieldPosition == null || building == null)
+        {
+            return false;
+        }
+
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        if (owned)
+        {
+            if (ownedFields.contains(immutablePosition))
+            {
+                return false;
+            }
+            if (ownedFields.size() >= getSupportedFieldCount() || !isEligibleUnownedField(immutablePosition))
+            {
+                return false;
+            }
+
+            ownedFields.add(immutablePosition);
+            final FieldBiomeAssignment assignment = assignments.computeIfAbsent(immutablePosition, ignored -> FieldBiomeAssignment.DEFAULT);
+            clearInvalidSeedForClimate(getServerLevel(), getField(immutablePosition), climate(assignment));
+            markDirty();
+            return true;
+        }
+
+        return releaseOwnedField(immutablePosition);
+    }
+
+    /**
+     * Check whether this greenhouse owns a field.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the field is owned by this module
+     */
+    public boolean isOwned(final BlockPos fieldPosition)
+    {
+        return fieldPosition != null && ownedFields.contains(fieldPosition);
+    }
+
+    /**
+     * Get the number of fields currently claimed by this greenhouse.
+     *
+     * @return the owned field count
+     */
+    public int getOwnedFieldCount()
+    {
+        return ownedFields.size();
+    }
+
+    /**
+     * Get the number of owned fields that can be maintained away from their natural biome climate.
+     *
+     * @return configured base slots plus unlocked research slots
+     */
+    public int getModifiedBiomeLimit()
+    {
+        if (building == null || building.getColony() == null)
+        {
+            return Config.baseBiomeCount.get();
+        }
+
+        return Config.baseBiomeCount.get()
+            + (int) Math.floor(building.getColony().getResearchManager().getResearchEffects().getEffectStrength(ModResearch.RESEARCH_EXTRA_BIOMES));
+    }
+
+    /**
+     * Count owned fields whose requested climate differs from their persisted or current natural biome climate.
+     *
+     * @param level server level containing biome data
+     * @return current modified-biome slot usage
+     */
+    public int getModifiedBiomeCount(final ServerLevel level)
+    {
+        int count = 0;
+        for (final BlockPos fieldPosition : ownedFields)
+        {
+            if (isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition)))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Check whether a managed field currently consumes a modified-biome slot.
+     *
+     * @param level server level containing biome data
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the saved assignment differs from the field's natural biome climate
+     */
+    public boolean isFieldModifiedFromNatural(final ServerLevel level, final BlockPos fieldPosition)
+    {
+        return isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition));
+    }
+
+    /**
+     * Check whether this field may change to the requested assignment under the modified-biome cap.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param assignment requested assignment
+     * @return true when the change is allowed
+     */
+    public boolean canSetAssignment(final BlockPos fieldPosition, final FieldBiomeAssignment assignment)
+    {
+        if (fieldPosition == null || assignment == null || !isOwned(fieldPosition))
+        {
+            return false;
+        }
+
+        final ServerLevel level = getServerLevel();
+        final boolean currentlyModified = isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition));
+        final boolean requestedModified = isAssignmentModifiedFromNatural(level, fieldPosition, assignment);
+        return currentlyModified || !requestedModified || getModifiedBiomeCount(level) < getModifiedBiomeLimit();
     }
 
     /**
@@ -146,7 +359,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      *
      * @return mutable map of quantized biome cell positions to natural biome ids
      */
-    public Map<net.minecraft.core.BlockPos, ResourceLocation> getNaturalBiomes()
+    public Map<BlockPos, ResourceLocation> getNaturalBiomes()
     {
         return naturalBiomes;
     }
@@ -156,11 +369,98 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      *
      * @return mutable map of quantized biome cell positions to applied biome ids
      */
-    public Map<net.minecraft.core.BlockPos, ResourceLocation> getAppliedBiomes()
+    public Map<BlockPos, ResourceLocation> getAppliedBiomes()
     {
         return appliedBiomes;
     }
 
+    /**
+     * Determine whether a field's configured seed can grow in its current biome.
+     *
+     * @param level server level containing the field
+     * @param field field to inspect
+     * @return true when an exotic MineColonies crop seed cannot grow at the field anchor
+     */
+    public boolean needsSeedUnsetForActualBiome(final ServerLevel level, final FarmField field)
+    {
+        BlockPos pos =  field.getPosition();
+
+        if (level == null || field == null || pos == null)
+        {
+            return false;
+        }
+
+        return !canSeedGrowInBiome(field.getSeed(), level.getBiome(pos));
+    }
+
+    /**
+     * Clear a field's configured seed when it cannot grow in the current biome.
+     *
+     * @param level server level containing the field
+     * @param field field to inspect
+     * @return true when the seed was cleared
+     */
+    public boolean clearInvalidSeedForActualBiome(final ServerLevel level, final FarmField field)
+    {
+        if (!needsSeedUnsetForActualBiome(level, field))
+        {
+            return false;
+        }
+
+        field.setSeed(ItemStack.EMPTY);
+        markDirty();
+        return true;
+    }
+
+    /**
+     * Clear a field's configured seed when it cannot grow in a requested greenhouse climate.
+     *
+     * @param level server level containing biome registries
+     * @param field field to inspect
+     * @param climate target greenhouse climate
+     * @return true when the seed was cleared
+     */
+    public boolean clearInvalidSeedForClimate(final ServerLevel level, final FarmField field, final GreenhouseClimate climate)
+    {
+        if (level == null || field == null || climate == null)
+        {
+            return false;
+        }
+
+        final Holder.Reference<Biome> targetBiome = biomeHolder(level, GreenhouseBiomeOverlayService.biomeFor(climate));
+        if (targetBiome == null || canSeedGrowInBiome(field.getSeed(), targetBiome))
+        {
+            return false;
+        }
+
+        field.setSeed(ItemStack.EMPTY);
+        markDirty();
+        return true;
+    }
+
+    @Override
+    public void onDestroyed()
+    {
+        final ServerLevel level = getServerLevel();
+        if (level == null)
+        {
+            ownedFields.clear();
+            assignments.clear();
+            return;
+        }
+
+        GreenhouseBiomeOverlayService.restoreAllOverlays(level, naturalBiomes, appliedBiomes);
+        clearInvalidOwnedFieldSeedsForActualBiomes(level);
+        ownedFields.clear();
+        assignments.clear();
+        markDirty();
+    }
+
+    /**
+     * Get how many fields this greenhouse level can own.
+     *
+     * @return maximum owned field count for the current building level
+     */
     public int getSupportedFieldCount()
     {
         final int level = building == null ? 0 : building.getBuildingLevel();
@@ -184,27 +484,125 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
-     * Get the fields this greenhouse can currently manage.
+     * Get the fields this greenhouse currently owns and can actively maintain.
      *
-     * @return sorted list of field extensions inside the greenhouse bounds
+     * @return sorted list of owned farm fields with valid climate control hubs
      */
+    @SuppressWarnings("null")
     public List<FarmField> getManagedFields()
     {
-        final int supportedFields = getSupportedFieldCount();
-        ensureFieldExtensionsRegistered(supportedFields);
-        return getManagedFields(supportedFields);
+        cleanupInvalidOwnedFields();
+        return allFarmFields().stream()
+            .filter(field -> field != null && ownedFields.contains(field.getPosition()) && hasClimateControlHub(field.getPosition()))
+            .sorted(Comparator.comparingInt(field -> field.getPosition().distManhattan(building.getID())))
+            .toList();
     }
 
     /**
-     * Get the list of managed fields.
-     * 
-     * @param supportedFields
-     * @return
+     * Find a farm field by its anchor position.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return the matching field, or null when none is registered
+     */
+    public FarmField getField(final BlockPos fieldPosition)
+    {
+        if (fieldPosition == null)
+        {
+            return null;
+        }
+
+        return allFarmFields().stream()
+            .filter(field -> fieldPosition.equals(field.getPosition()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * Get fields that should be displayed in the module window.
+     *
+     * @return owned fields and eligible unowned fields, excluding fields owned by another greenhouse
      */
     @SuppressWarnings("null")
-    private List<FarmField> getManagedFields(final int supportedFields)
+    private List<FarmField> getVisibleFields()
     {
-        if (building == null || supportedFields <= 0)
+        if (building == null)
+        {
+            return List.of();
+        }
+
+        return allFarmFields().stream()
+            .filter(field -> field != null && isVisibleField(field.getPosition()))
+            .sorted(Comparator
+                .comparing((FarmField field) -> !ownedFields.contains(field.getPosition()))
+                .thenComparingInt(field -> field.getPosition().distManhattan(building.getID())))
+            .toList();
+    }
+
+    /**
+     * Check whether a field can appear in this greenhouse's biome module.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the field is owned here or eligible to be claimed here
+     */
+    private boolean isVisibleField(final BlockPos fieldPosition)
+    {
+        if (fieldPosition == null || !hasClimateControlHub(fieldPosition))
+        {
+            return false;
+        }
+
+        return ownedFields.contains(fieldPosition) || isEligibleUnownedField(fieldPosition);
+    }
+
+    /**
+     * Check whether an unowned field can be claimed by this greenhouse.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the field has a hub and no other greenhouse owns it
+     */
+    private boolean isEligibleUnownedField(final BlockPos fieldPosition)
+    {
+        return fieldPosition != null && hasClimateControlHub(fieldPosition) && !isOwnedByAnotherGreenhouse(fieldPosition);
+    }
+
+    /**
+     * Check whether another greenhouse in the colony owns a field.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return true when a different greenhouse module owns the field
+     */
+    private boolean isOwnedByAnotherGreenhouse(final BlockPos fieldPosition)
+    {
+        if (building == null || fieldPosition == null)
+        {
+            return false;
+        }
+
+        for (final IBuilding candidate : building.getColony().getServerBuildingManager().getBuildings().values())
+        {
+            if (candidate == null || building.getID().equals(candidate.getID()))
+            {
+                continue;
+            }
+
+            final GreenhouseBiomeModule module = candidate.getModule(GreenhouseBiomeModule.class, ignored -> true);
+            if (module != null && module.isOwned(fieldPosition))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get all registered MineColonies farm field extensions in this colony.
+     *
+     * @return registered farm field extensions
+     */
+    private List<FarmField> allFarmFields()
+    {
+        if (building == null)
         {
             return List.of();
         }
@@ -212,67 +610,311 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final List<FarmField> fields = new ArrayList<>();
         for (final IBuildingExtension extension : building.getColony()
             .getServerBuildingManager()
-            .getBuildingExtensions(field -> field instanceof FarmField && building.isInBuilding(field.getPosition())))
+            .getBuildingExtensions(field -> field instanceof FarmField))
         {
             fields.add((FarmField) extension);
         }
-
-        return fields.stream()
-            .sorted(Comparator.comparingInt(field -> field.getPosition().distManhattan(building.getID())))
-            .limit(supportedFields)
-            .toList();
+        return fields;
     }
 
     /**
-     * Re-register scarecrow fields inside the greenhouse when MineColonies has not
-     * already tracked them. This is run when the module view is requested, not on a
-     * colony tick.
+     * Remove ownership for any field whose climate hub has been removed.
+     */
+    public void cleanupInvalidOwnedFields()
+    {
+        if (building == null || ownedFields.isEmpty())
+        {
+            return;
+        }
+
+        final List<BlockPos> invalidFields = ownedFields.stream()
+            .filter(pos -> !hasClimateControlHub(pos))
+            .sorted(Comparator.comparing(BlockPos::asLong))
+            .toList();
+        if (invalidFields.isEmpty())
+        {
+            return;
+        }
+
+        invalidFields.forEach(pos -> {
+            releaseOwnedField(pos);
+        });
+        markDirty();
+        building.markDirty();
+    }
+
+    /**
+     * Release an owned field, restore its natural biome, and clear seeds that no longer fit.
      *
-     * @param supportedFields maximum number of field slots this greenhouse can use
+     * @param fieldPosition position of the farm field anchor
+     * @return true when ownership changed
+     */
+    private boolean releaseOwnedField(final BlockPos fieldPosition)
+    {
+        if (!ownedFields.remove(fieldPosition))
+        {
+            return false;
+        }
+
+        restoreFieldOverlay(fieldPosition);
+        clearInvalidSeedForActualBiome(getServerLevel(), getField(fieldPosition));
+        assignments.remove(fieldPosition);
+        markDirty();
+        return true;
+    }
+
+    /**
+     * Check whether the field anchor has a climate control hub directly underneath it.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the block below is the climate control hub
      */
     @SuppressWarnings("null")
-    private void ensureFieldExtensionsRegistered(final int supportedFields)
+    private boolean hasClimateControlHub(final BlockPos fieldPosition)
     {
-        if (building == null || supportedFields <= 0 || getManagedFields(supportedFields).size() >= supportedFields)
+        if (building == null || fieldPosition == null)
+        {
+            return false;
+        }
+
+        final Level level = building.getColony().getWorld();
+        return level != null && level.getBlockState(fieldPosition.below()).is(GreenhouseGardenerMod.climateControlHub.get());
+    }
+
+    /**
+     * Restore this module's biome overlay for a single field footprint.
+     *
+     * @param fieldPosition position of the farm field anchor
+     */
+    private void restoreFieldOverlay(final BlockPos fieldPosition)
+    {
+        if (building == null || fieldPosition == null)
         {
             return;
         }
 
         final Level level = building.getColony().getWorld();
-        final Tuple<BlockPos, BlockPos> corners = building.getCorners();
-        final BlockPos min = corners.getA().offset(-1, -1, -1);
-        final BlockPos max = corners.getB().offset(1, 1, 1);
-
-        for (final BlockPos pos : BlockPos.betweenClosed(min.getX(), min.getY(), min.getZ(), max.getX(), max.getY(), max.getZ()))
+        final FarmField field = getField(fieldPosition);
+        if (field == null || !(level instanceof ServerLevel serverLevel))
         {
-            if (pos == null || !building.isInBuilding(pos))
-            {
-                continue;
-            }
+            return;
+        }
 
-            final BlockState state = level.getBlockState(pos);
-            
-            if (state.is(ModBlocks.blockScarecrow) && state.getValue(BlockScarecrow.HALF) == DoubleBlockHalf.LOWER)
-            {
-                final FarmField field = FarmField.create(pos.immutable(), level);
-                if (field != null)
-                {
-                    building.getColony().getServerBuildingManager().addBuildingExtension(field);
-                }
-            }
+        GreenhouseBiomeOverlayService.restoreOverlay(serverLevel, fieldPosition, horizontalRange(field), naturalBiomes, appliedBiomes);
+    }
+
+    /**
+     * Clear invalid seeds for every field currently owned by this module.
+     *
+     * @param level server level containing the owned fields
+     */
+    private void clearInvalidOwnedFieldSeedsForActualBiomes(final ServerLevel level)
+    {
+        boolean changed = false;
+        for (final BlockPos fieldPosition : ownedFields)
+        {
+            changed |= clearInvalidSeedForActualBiome(level, getField(fieldPosition));
+        }
+
+        if (changed)
+        {
+            markDirty();
         }
     }
 
-    /*
-     * Read the tag information from the biome map.
+    /**
+     * Clear a field's seed for its saved target climate.
+     *
+     * @param fieldPosition position of the farm field anchor
      */
-    private static void readBiomeMap(final ListTag tags, final Map<net.minecraft.core.BlockPos, ResourceLocation> target)
+    private void clearInvalidSeedForAssignedClimate(final BlockPos fieldPosition)
+    {
+        clearInvalidSeedForClimate(getServerLevel(), getField(fieldPosition), climate(getAssignment(fieldPosition)));
+    }
+
+    /**
+     * Resolve this building's world as a server level.
+     *
+     * @return server level, or null when unavailable
+     */
+    private ServerLevel getServerLevel()
+    {
+        if (building == null)
+        {
+            return null;
+        }
+
+        final Level level = building.getColony().getWorld();
+        return level instanceof ServerLevel serverLevel && !serverLevel.isClientSide() ? serverLevel : null;
+    }
+
+    /**
+     * Check whether a configured field seed can grow in a biome.
+     *
+     * @param seed selected field seed
+     * @param biome biome to test
+     * @return true for vanilla/non-exotic seeds or compatible MineColonies crop seeds
+     */
+    private static boolean canSeedGrowInBiome(final ItemStack seed, final Holder<Biome> biome)
+    {
+        if (seed == null || seed.isEmpty() || !(seed.getItem() instanceof ItemCrop itemCrop))
+        {
+            return true;
+        }
+
+        return biome != null && itemCrop.canBePlantedIn(biome);
+    }
+
+    /**
+     * Resolve a biome holder without throwing when configuration is invalid.
+     *
+     * @param level server level containing biome registries
+     * @param biomeId biome id to resolve
+     * @return biome holder, or null when unavailable
+     */
+    @SuppressWarnings("null")
+    private static Holder.Reference<Biome> biomeHolder(final ServerLevel level, final ResourceLocation biomeId)
+    {
+        if (level == null || biomeId == null)
+        {
+            return null;
+        }
+
+        return level.registryAccess()
+            .registryOrThrow(Registries.BIOME)
+            .getHolder(ResourceKey.create(Registries.BIOME, biomeId))
+            .orElse(null);
+    }
+
+    /**
+     * Convert a field biome assignment into shared greenhouse climate settings.
+     *
+     * @param assignment field biome assignment
+     * @return shared greenhouse climate settings
+     */
+    private static GreenhouseClimate climate(final FieldBiomeAssignment assignment)
+    {
+        return new GreenhouseClimate(assignment.temperature(), assignment.humidity());
+    }
+
+    /**
+     * Check whether an assignment differs from the field's natural biome climate.
+     *
+     * @param level server level containing biome data
+     * @param fieldPosition position of the farm field anchor
+     * @param assignment assignment to compare
+     * @return true when the assignment is not the natural climate
+     */
+    private boolean isAssignmentModifiedFromNatural(final ServerLevel level, final BlockPos fieldPosition, final FieldBiomeAssignment assignment)
+    {
+        if (fieldPosition == null || assignment == null)
+        {
+            return false;
+        }
+
+        final GreenhouseClimate naturalClimate = naturalClimate(level, fieldPosition);
+        return assignment.temperature() != naturalClimate.temperature() || assignment.humidity() != naturalClimate.humidity();
+    }
+
+    /**
+     * Resolve the field's natural climate, preferring persisted biome captures and falling back to the current world biome.
+     *
+     * @param level server level containing biome data
+     * @param pos block position to classify
+     * @return natural temperature and humidity axes
+     */
+    @SuppressWarnings("null")
+    private GreenhouseClimate naturalClimate(final ServerLevel level, final BlockPos pos)
+    {
+        if (level != null)
+        {
+            final ResourceLocation naturalBiomeId = naturalBiomes.get(quantizedBlockPos(pos));
+            if (naturalBiomeId != null)
+            {
+                final Optional<Holder.Reference<Biome>> naturalBiome = level.registryAccess()
+                    .registryOrThrow(Registries.BIOME)
+                    .getHolder(ResourceKey.create(Registries.BIOME, naturalBiomeId));
+                if (naturalBiome.isPresent())
+                {
+                    return climate(naturalBiomeId, naturalBiome.get().value());
+                }
+            }
+
+            final Holder<Biome> currentBiome = level.getBiome(pos);
+            final ResourceLocation currentBiomeId = currentBiome.unwrapKey().map(ResourceKey::location).orElse(null);
+            return climate(currentBiomeId, currentBiome.value());
+        }
+
+        return climate(FieldBiomeAssignment.DEFAULT);
+    }
+
+    /**
+     * Classify a biome into the greenhouse temperature and humidity axes.
+     *
+     * @param biomeId biome id when available
+     * @param biome biome instance to inspect
+     * @return corresponding greenhouse climate axes
+     */
+    private static GreenhouseClimate climate(final ResourceLocation biomeId, final Biome biome)
+    {
+        if (biomeId != null)
+        {
+            final Optional<GreenhouseClimate> configuredReferenceClimate = GreenhouseBiomeOverlayService.climateFor(biomeId);
+            if (configuredReferenceClimate.isPresent())
+            {
+                return configuredReferenceClimate.get();
+            }
+        }
+
+        final Biome.ClimateSettings settings = biome.getModifiedClimateSettings();
+        final TemperatureSetting temperature = settings.temperature() <= 0.3F
+            ? TemperatureSetting.COLD
+            : settings.temperature() >= 0.9F ? TemperatureSetting.HOT : TemperatureSetting.TEMPERATE;
+        final HumiditySetting humidity = settings.downfall() <= 0.3F
+            ? HumiditySetting.DRY
+            : settings.downfall() >= 0.8F ? HumiditySetting.HUMID : HumiditySetting.NORMAL;
+        return new GreenhouseClimate(temperature, humidity);
+    }
+
+    /**
+     * Calculate the largest horizontal field radius in any cardinal direction.
+     *
+     * @param field the field whose radius values should be inspected
+     * @return the maximum north, south, east, or west field radius
+     */
+    private static int horizontalRange(final FarmField field)
+    {
+        return Math.max(
+            Math.max(field.getRadius(net.minecraft.core.Direction.NORTH), field.getRadius(net.minecraft.core.Direction.SOUTH)),
+            Math.max(field.getRadius(net.minecraft.core.Direction.EAST), field.getRadius(net.minecraft.core.Direction.WEST)));
+    }
+
+    private static BlockPos quantizedBlockPos(final BlockPos pos)
+    {
+        return new BlockPos(quantize(pos.getX()), quantize(pos.getY()), quantize(pos.getZ()));
+    }
+
+    private static int quantize(final int value)
+    {
+        return QuartPos.toBlock(QuartPos.fromBlock(value));
+    }
+
+    /**
+     * Read the tag information from the biome map.
+     *
+     * @param tags serialized biome tags
+     * @param target map receiving deserialized biome ids
+     */
+    private static void readBiomeMap(final ListTag tags, final Map<BlockPos, ResourceLocation> target)
     {
         for (final Tag tag : tags)
         {
             final CompoundTag biomeTag = (CompoundTag) tag;
 
-            if (biomeTag == null) continue;
+            if (biomeTag == null)
+            {
+                continue;
+            }
 
             NbtUtils.readBlockPos(biomeTag, TAG_POS).ifPresent(pos -> {
                 final ResourceLocation biome = ResourceLocation.tryParse(biomeTag.getString(TAG_BIOME) + "");
@@ -284,8 +926,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
     }
 
+    /**
+     * Write the tag information for a biome map.
+     *
+     * @param source biome map to serialize
+     * @return serialized biome tag list
+     */
     @SuppressWarnings("null")
-    private static ListTag writeBiomeMap(final Map<net.minecraft.core.BlockPos, ResourceLocation> source)
+    private static ListTag writeBiomeMap(final Map<BlockPos, ResourceLocation> source)
     {
         final ListTag tags = new ListTag();
         source.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().asLong())).forEach(entry -> {
@@ -359,5 +1007,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             }
             return NORMAL;
         }
+    }
+
+    @Override
+    public void alterItemsToBeKept(TriConsumer<Predicate<ItemStack>, Integer, Boolean> arg0)
+    {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'alterItemsToBeKept'");
     }
 }

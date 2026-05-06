@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.deathfrog.greenhousegardener.core.ModTags;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
 import com.minecolonies.api.crafting.ItemStorage;
@@ -34,8 +35,12 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     private static final String TAG_INCREASE = "increase";
     private static final String TAG_DECREASE = "decrease";
     private static final String TAG_PROTECTED_QUANTITY = "protectedQuantity";
+    private static final String TAG_LEDGER_INCREASE = "ledgerIncrease";
+    private static final String TAG_LEDGER_DECREASE = "ledgerDecrease";
+    public static final int DEFAULT_LEDGER_LIMIT = 100;
 
     private final Map<ClimateItemList, Set<ItemStorage>> items = new EnumMap<>(ClimateItemList.class);
+    private final Map<ClimateItemList, Integer> ledgerBalances = new EnumMap<>(ClimateItemList.class);
 
     /**
      * Creates a climate item module with separate increase and decrease item lists.
@@ -44,6 +49,8 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     {
         items.put(ClimateItemList.INCREASE, new HashSet<>());
         items.put(ClimateItemList.DECREASE, new HashSet<>());
+        ledgerBalances.put(ClimateItemList.INCREASE, 0);
+        ledgerBalances.put(ClimateItemList.DECREASE, 0);
     }
 
     /**
@@ -95,6 +102,152 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     public abstract @Nonnull TagKey<Item> getAllowedTag(ClimateItemList list);
 
     /**
+     * Get the climate modification type represented by one side of this module.
+     *
+     * @param list the target increase or decrease list
+     * @return the climate modification type ledgered by the list
+     */
+    public abstract @Nonnull ClimateModificationType getModificationType(ClimateItemList list);
+
+    /**
+     * Get the current ledgered climate modification balance for a list.
+     *
+     * @param list the target increase or decrease list
+     * @return current ledger balance
+     */
+    public int getLedgerBalance(final ClimateItemList list)
+    {
+        return ledgerBalances.getOrDefault(list, 0);
+    }
+
+    /**
+     * Get the maximum balance this module tries to keep for a list.
+     *
+     * @param list the target increase or decrease list
+     * @return ledger limit
+     */
+    public int getLedgerLimit(final ClimateItemList list)
+    {
+        return DEFAULT_LEDGER_LIMIT;
+    }
+
+    /**
+     * Check if this list can accept more ledgered climate modification power.
+     *
+     * @param list the target increase or decrease list
+     * @return true when the balance is below the configured limit
+     */
+    public boolean isLedgerUnderLimit(final ClimateItemList list)
+    {
+        return getLedgerBalance(list) < getLedgerLimit(list);
+    }
+
+    /**
+     * Calculate a sensible request count for this item based on the remaining ledger capacity.
+     *
+     * @param list the target increase or decrease list
+     * @param stack selected climate item
+     * @return requested item count, or zero when the item has no modification value
+     */
+    public int getLedgerRequestCount(final ClimateItemList list, final ItemStack stack)
+    {
+        final int unit = climateModificationUnit(stack);
+        if (unit <= 0 || !isLedgerUnderLimit(list))
+        {
+            return 0;
+        }
+
+        final int remaining = getLedgerLimit(list) - getLedgerBalance(list);
+        final int requiredItems = Math.max(1, (int) Math.ceil((double) remaining / unit));
+        return Math.min(stack.getMaxStackSize(), requiredItems);
+    }
+
+    /**
+     * Add an item stack's climate modification power to a list ledger.
+     *
+     * @param list the target increase or decrease list
+     * @param stack stack consumed by the horticulturist
+     * @return amount of climate modification power added
+     */
+    public int ledgerStack(final ClimateItemList list, final ItemStack stack)
+    {
+        if (stack.isEmpty() || !stack.is(getAllowedTag(list)) || !isLedgerUnderLimit(list))
+        {
+            return 0;
+        }
+
+        final int value = climateModificationUnit(stack) * stack.getCount();
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        ledgerBalances.put(list, getLedgerBalance(list) + value);
+        markDirty();
+        return value;
+    }
+
+    /**
+     * Deduct climate modification power from a list ledger when enough balance is available.
+     *
+     * @param list the target increase or decrease list
+     * @param amount amount of climate modification power to deduct
+     * @return true when the amount was deducted or no amount was required
+     */
+    public boolean tryDebitLedger(final ClimateItemList list, final int amount)
+    {
+        if (amount <= 0)
+        {
+            return true;
+        }
+
+        final int balance = getLedgerBalance(list);
+        if (balance < amount)
+        {
+            return false;
+        }
+
+        ledgerBalances.put(list, balance - amount);
+        markDirty();
+        return true;
+    }
+
+    /**
+     * Resolve the climate modification unit for a selected item from its tier tag.
+     *
+     * @param stack selected climate item
+     * @return unit value contributed by one item
+     */
+    public static int climateModificationUnit(final ItemStack stack)
+    {
+        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_HIGH)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_HIGH)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_HIGH)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_HIGH))
+        {
+            return 7;
+        }
+
+        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_MEDIUM)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_MEDIUM)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_MEDIUM)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_MEDIUM))
+        {
+            return 3;
+        }
+
+        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_LOW)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_LOW)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_LOW)
+            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_LOW))
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /**
      * Read persisted increase and decrease item lists from NBT.
      *
      * @param provider holder lookup used to deserialize item stacks
@@ -106,6 +259,8 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         items.values().forEach(Set::clear);
         readItems(provider, compound.getList(TAG_INCREASE, Tag.TAG_COMPOUND), items.get(ClimateItemList.INCREASE));
         readItems(provider, compound.getList(TAG_DECREASE, Tag.TAG_COMPOUND), items.get(ClimateItemList.DECREASE));
+        ledgerBalances.put(ClimateItemList.INCREASE, compound.getInt(TAG_LEDGER_INCREASE));
+        ledgerBalances.put(ClimateItemList.DECREASE, compound.getInt(TAG_LEDGER_DECREASE));
     }
 
     /**
@@ -128,6 +283,9 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         {
             compound.put(TAG_DECREASE, decreaseItems);
         }
+
+        compound.putInt(TAG_LEDGER_INCREASE, getLedgerBalance(ClimateItemList.INCREASE));
+        compound.putInt(TAG_LEDGER_DECREASE, getLedgerBalance(ClimateItemList.DECREASE));
     }
 
     /**
@@ -237,5 +395,13 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         {
             return id >= 0 && id < values().length ? values()[id] : INCREASE;
         }
+    }
+
+    /**
+     * Climate modification ledgers maintained by greenhouse workers.
+     */
+    public enum ClimateModificationType
+    {
+        HOT, COLD, HUMID, DRY
     }
 }

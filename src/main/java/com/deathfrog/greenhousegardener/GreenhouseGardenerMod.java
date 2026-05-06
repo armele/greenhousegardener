@@ -9,6 +9,7 @@ import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitialize
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModBuildingsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModJobsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.TileEntityInitializer;
+import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub;
 import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutGreenhouse;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
 import com.minecolonies.api.creativetab.ModCreativeTabs;
@@ -27,6 +28,7 @@ import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -45,6 +47,7 @@ public class GreenhouseGardenerMod {
     * BLOCKS
     */
     public static final DeferredBlock<BlockHutGreenhouse> blockHutGreenhouse = BLOCKS.register(BlockHutGreenhouse.HUT_NAME, () -> new BlockHutGreenhouse());
+    public static final DeferredBlock<BlockClimateControlHub> climateControlHub = BLOCKS.register(BlockClimateControlHub.BLOCK_NAME, () -> new BlockClimateControlHub());
 
     /*
     * ITEMS
@@ -53,6 +56,11 @@ public class GreenhouseGardenerMod {
     public static final @Nonnull DeferredItem<ItemBlockHut> blockHutGreenhouseItem = ITEMS.register(
       BlockHutGreenhouse.HUT_NAME,
       () -> new ItemBlockHut(blockHutGreenhouse.get(), new Item.Properties()));
+
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<BlockItem> climateControlHubItem = ITEMS.register(
+      BlockClimateControlHub.BLOCK_NAME,
+      () -> new BlockItem(climateControlHub.get(), new Item.Properties()));
   
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
@@ -79,6 +87,9 @@ public class GreenhouseGardenerMod {
         ModJobsInitializer.DEFERRED_REGISTER.register(modEventBus);  
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
+        Config.register(modContainer);
+
+        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         // modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
         // Add a listener for the completion of the load.
@@ -95,6 +106,7 @@ public class GreenhouseGardenerMod {
         if (event.getTabKey().equals(ModCreativeTabs.HUTS.getKey()))
         {
             event.accept(blockHutGreenhouseItem);
+            event.accept(climateControlHubItem);
         }
     }
 

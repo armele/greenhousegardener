@@ -14,13 +14,13 @@ When a greenhouse biome is applied, the building records the natural biome for e
 
 The greenhouse capacity is:
 
-| Level | Fields | Supported Biomes |
-| --- | ---: | ---: |
-| 1 | 1 | 1 |
-| 2 | 2 | 1 |
-| 3 | 3 | 2 |
-| 4 | 4 | 3 |
-| 5 | 4 | 4 |
+| Level | Fields |
+| --- | ---: |
+| 1 | 1 |
+| 2 | 2 |
+| 3 | 3 |
+| 4 | 4 |
+| 5 | 4 |
 
 ### Modules
 

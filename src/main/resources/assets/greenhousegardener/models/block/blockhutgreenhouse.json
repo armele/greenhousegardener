@@ -7,7 +7,8 @@
 		"3": "block/stripped_oak_log",
 		"bottom": "block/oak_planks",
 		"particle": "block/flower_pot",
-		"flowerpot": "block/terracotta"
+		"flowerpot": "block/terracotta",
+		"dirt" : "block/packed_mud"
 	},
 	"elements": [
 		{
@@ -91,12 +92,12 @@
 			"to": [14, 21, 7],
 			"rotation": {"angle": 0, "axis": "y", "origin": [12.75, 17.5, 5.5]},
 			"faces": {
-				"north": {"uv": [6, 10, 10, 15], "texture": "#flowerpot"},
-				"east": {"uv": [1, 10, 5, 15], "texture": "#flowerpot"},
-				"south": {"uv": [1, 4, 5, 9], "texture": "#flowerpot"},
-				"west": {"uv": [6, 4, 10, 9], "texture": "#flowerpot"},
-				"up": {"uv": [11, 5, 15, 9], "texture": "#flowerpot"},
-				"down": {"uv": [11, 10, 15, 14], "texture": "#flowerpot", "cullface": "down"}
+				"north": {"uv": [6, 10, 10, 15], "texture": "#dirt"},
+				"east": {"uv": [1, 10, 5, 15], "texture": "#dirt"},
+				"south": {"uv": [1, 4, 5, 9], "texture": "#dirt"},
+				"west": {"uv": [6, 4, 10, 9], "texture": "#dirt"},
+				"up": {"uv": [11, 5, 15, 9], "texture": "#dirt"},
+				"down": {"uv": [11, 10, 15, 14], "texture": "#dirt", "cullface": "down"}
 			}
 		},
 		{
@@ -161,12 +162,12 @@
 			"to": [6, 21, 7],
 			"rotation": {"angle": 0, "axis": "y", "origin": [4.75, 17.5, 5.5]},
 			"faces": {
-				"north": {"uv": [6, 10, 10, 15], "texture": "#flowerpot"},
-				"east": {"uv": [1, 10, 5, 15], "texture": "#flowerpot"},
-				"south": {"uv": [1, 4, 5, 9], "texture": "#flowerpot"},
-				"west": {"uv": [6, 4, 10, 9], "texture": "#flowerpot"},
-				"up": {"uv": [11, 5, 15, 9], "texture": "#flowerpot"},
-				"down": {"uv": [11, 10, 15, 14], "texture": "#flowerpot", "cullface": "down"}
+				"north": {"uv": [6, 10, 10, 15], "texture": "#dirt"},
+				"east": {"uv": [1, 10, 5, 15], "texture": "#dirt"},
+				"south": {"uv": [1, 4, 5, 9], "texture": "#dirt"},
+				"west": {"uv": [6, 4, 10, 9], "texture": "#dirt"},
+				"up": {"uv": [11, 5, 15, 9], "texture": "#dirt"},
+				"down": {"uv": [11, 10, 15, 14], "texture": "#dirt", "cullface": "down"}
 			}
 		},
 		{

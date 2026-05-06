@@ -1,0 +1,37 @@
+{
+    "name": "Advanced Conditioning",
+    "subtitle": "Maximum optionality!",
+    "branch": "minecolonies:technology",
+    "parentResearch": "greenhousegardener:technology/natures_master",
+    "researchLevel": 3,
+    "sortOrder": 0,
+    "exclusiveChildResearch": false,
+    "no-reset": false,
+    "hidden": false,
+    "autostart": false,
+    "instant": false,
+    "requirements": [
+        {
+            "type": "minecolonies:building",
+            "building": "greenhousegardener:greenhouse",
+            "level": 2
+        }
+    ],
+    "costs": [
+        {
+            "count": 64,
+            "item": "minecraft:cocoa_beans"
+        },
+        {
+            "count": 16,
+            "item": "minecraft:snowball"
+        }
+    ],
+    "effects": [
+        {
+            "id": "greenhousegardener:effects/extrabiomes",
+            "level": 1
+        }
+    ],
+    "icon": "greenhousegardener:greenhouse"
+}

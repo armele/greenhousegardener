@@ -23,4 +23,10 @@ public class GreenhouseHumidityModule extends GreenhouseClimateItemModule
     {
         return list == ClimateItemList.INCREASE ? ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE : ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE;
     }
+
+    @Override
+    public @Nonnull ClimateModificationType getModificationType(final ClimateItemList list)
+    {
+        return list == ClimateItemList.INCREASE ? ClimateModificationType.HUMID : ClimateModificationType.DRY;
+    }
 }

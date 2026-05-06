@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "waterlogged=false": {
+      "model": "greenhousegardener:block/climatecontrolhub"
+    },
+    "waterlogged=true": {
+      "model": "greenhousegardener:block/climatecontrolhub"
+    }
+  }
+}

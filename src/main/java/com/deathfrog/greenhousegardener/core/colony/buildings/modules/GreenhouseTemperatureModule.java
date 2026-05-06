@@ -23,4 +23,10 @@ public class GreenhouseTemperatureModule extends GreenhouseClimateItemModule
     {
         return list == ClimateItemList.INCREASE ? ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE : ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE;
     }
+
+    @Override
+    public @Nonnull ClimateModificationType getModificationType(final ClimateItemList list)
+    {
+        return list == ClimateItemList.INCREASE ? ClimateModificationType.HOT : ClimateModificationType.COLD;
+    }
 }

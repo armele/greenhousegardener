@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "structurize:sceptergold"
+    },
+    "X": {
+      "tag": "minecraft:planks"
+    },
+    "H": {
+      "tag": "minecraft:lava_bucket"
+    },
+    "C": {
+      "tag": "minecraft:water_bucket"
+    }
+  },
+  "pattern": [
+    "XXX",
+    "HBC",
+    "XXX"
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:blockhutgreenhouse"
+  }
+}

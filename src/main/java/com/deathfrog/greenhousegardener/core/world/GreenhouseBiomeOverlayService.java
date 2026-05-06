@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.deathfrog.greenhousegardener.Config;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -41,7 +44,7 @@ public final class GreenhouseBiomeOverlayService
      * @param level the server level containing the target chunks
      * @param center the center of the target field area
      * @param horizontalRange the horizontal block radius to overlay
-     * @param settings the desired climate settings
+     * @param climate the desired greenhouse climate
      * @param naturalBiomes persisted biome cells captured before this service first changed them
      * @param appliedBiomes persisted biome cells last written by this service
      * @return a summary of the overlay work performed
@@ -50,11 +53,11 @@ public final class GreenhouseBiomeOverlayService
         final ServerLevel level,
         final BlockPos center,
         final int horizontalRange,
-        final ClimateSettings settings,
+        final GreenhouseClimate climate,
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        return applyOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, settings, naturalBiomes, appliedBiomes);
+        return applyOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, climate, naturalBiomes, appliedBiomes);
     }
 
     /**
@@ -64,7 +67,7 @@ public final class GreenhouseBiomeOverlayService
      * @param center the center of the target field area
      * @param horizontalRange the horizontal block radius to overlay
      * @param verticalRange the vertical block radius to overlay
-     * @param settings the desired climate settings
+     * @param climate the desired greenhouse climate
      * @param naturalBiomes persisted biome cells captured before this service first changed them
      * @param appliedBiomes persisted biome cells last written by this service
      * @return a summary of the overlay work performed
@@ -75,16 +78,21 @@ public final class GreenhouseBiomeOverlayService
         final BlockPos center,
         final int horizontalRange,
         final int verticalRange,
-        final ClimateSettings settings,
+        final GreenhouseClimate climate,
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        if (level == null || center == null || settings == null || naturalBiomes == null || appliedBiomes == null)
+        if (level == null || center == null || climate == null || naturalBiomes == null || appliedBiomes == null)
         {
             return OverlayResult.EMPTY;
         }
 
-        final ResourceLocation targetBiomeId = biomeFor(settings);
+        final ResourceLocation targetBiomeId = biomeFor(climate);
+        if (targetBiomeId == null)
+        {
+            return OverlayResult.EMPTY;
+        }
+
         final Holder.Reference<Biome> targetBiome = biomeHolder(level, targetBiomeId);
         final BoundingBox targetRegion = quantizedBox(center, horizontalRange, verticalRange);
         final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
@@ -210,32 +218,61 @@ public final class GreenhouseBiomeOverlayService
     /**
      * Resolve the vanilla biome used to represent a requested greenhouse climate.
      *
-     * @param settings the desired climate settings
+     * @param climate the desired greenhouse climate
      * @return the resource location of the overlay biome
      */
-    public static ResourceLocation biomeFor(final ClimateSettings settings)
+    @SuppressWarnings("null")
+    public static ResourceLocation biomeFor(final GreenhouseClimate climate)
     {
-        return switch (settings.temperature())
+        final String biomeId = switch (climate.temperature())
         {
-            case COLD -> switch (settings.humidity())
+            case COLD -> switch (climate.humidity())
             {
-                case DRY -> ResourceLocation.withDefaultNamespace("snowy_slopes");
-                case NORMAL -> ResourceLocation.withDefaultNamespace("snowy_plains");
-                case HUMID -> ResourceLocation.withDefaultNamespace("old_growth_pine_taiga");
+                case DRY -> Config.coldDry.get();
+                case NORMAL -> Config.coldNormal.get();
+                case HUMID -> Config.coldHumid.get();
             };
-            case TEMPERATE -> switch (settings.humidity())
+            case TEMPERATE -> switch (climate.humidity())
             {
-                case DRY -> ResourceLocation.withDefaultNamespace("savanna");
-                case NORMAL -> ResourceLocation.withDefaultNamespace("plains");
-                case HUMID -> ResourceLocation.withDefaultNamespace("swamp");
+                case DRY -> Config.temperateDry.get();
+                case NORMAL -> Config.temperateNormal.get();
+                case HUMID -> Config.temperateHumid.get();
             };
-            case HOT -> switch (settings.humidity())
+            case HOT -> switch (climate.humidity())
             {
-                case DRY -> ResourceLocation.withDefaultNamespace("desert");
-                case NORMAL -> ResourceLocation.withDefaultNamespace("sparse_jungle");
-                case HUMID -> ResourceLocation.withDefaultNamespace("jungle");
+                case DRY -> Config.hotDry.get();
+                case NORMAL -> Config.hotNormal.get();
+                case HUMID -> Config.hotHumid.get();
             };
         };
+        return ResourceLocation.tryParse(biomeId);
+    }
+
+    /**
+     * Resolve a configured reference biome back to its exact greenhouse climate.
+     *
+     * @param biomeId biome id to classify
+     * @return the configured greenhouse climate, or empty when the biome is not a reference biome
+     */
+    public static Optional<GreenhouseClimate> climateFor(final ResourceLocation biomeId)
+    {
+        if (biomeId == null)
+        {
+            return Optional.empty();
+        }
+
+        for (final TemperatureSetting temperature : TemperatureSetting.values())
+        {
+            for (final HumiditySetting humidity : HumiditySetting.values())
+            {
+                final GreenhouseClimate climate = new GreenhouseClimate(temperature, humidity);
+                if (biomeId.equals(biomeFor(climate)))
+                {
+                    return Optional.of(climate);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -244,16 +281,16 @@ public final class GreenhouseBiomeOverlayService
      * @param level the server level containing the field
      * @param center the center of the target field area
      * @param horizontalRange the horizontal block radius to inspect
-     * @param settings the desired climate settings
+     * @param climate the desired greenhouse climate
      * @return true when at least one loaded biome cell in the region differs from the target biome
      */
     public static boolean needsOverlay(
         final ServerLevel level,
         final BlockPos center,
         final int horizontalRange,
-        final ClimateSettings settings)
+        final GreenhouseClimate climate)
     {
-        return needsOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, settings);
+        return needsOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, climate);
     }
 
     /**
@@ -263,7 +300,7 @@ public final class GreenhouseBiomeOverlayService
      * @param center the center of the target field area
      * @param horizontalRange the horizontal block radius to inspect
      * @param verticalRange the vertical block radius to inspect
-     * @param settings the desired climate settings
+     * @param climate the desired greenhouse climate
      * @return true when at least one loaded biome cell in the region differs from the target biome
      */
     public static boolean needsOverlay(
@@ -271,14 +308,19 @@ public final class GreenhouseBiomeOverlayService
         final BlockPos center,
         final int horizontalRange,
         final int verticalRange,
-        final ClimateSettings settings)
+        final GreenhouseClimate climate)
     {
-        if (level == null || center == null || settings == null)
+        if (level == null || center == null || climate == null)
         {
             return false;
         }
 
-        final ResourceLocation targetBiomeId = biomeFor(settings);
+        final ResourceLocation targetBiomeId = biomeFor(climate);
+        if (targetBiomeId == null)
+        {
+            return false;
+        }
+
         final BoundingBox targetRegion = quantizedBox(center, horizontalRange, verticalRange);
         final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
         if (chunkSelection.chunks().isEmpty())
@@ -439,12 +481,12 @@ public final class GreenhouseBiomeOverlayService
     }
 
     /**
-     * Temperature and humidity pair used by the overlay service.
+     * Shared greenhouse climate axes used for field assignment, overlay biomes, and cost calculation.
      *
-     * @param temperature the requested temperature axis
-     * @param humidity the requested humidity axis
+     * @param temperature requested or inferred temperature axis
+     * @param humidity requested or inferred humidity axis
      */
-    public record ClimateSettings(OverlayTemperature temperature, OverlayHumidity humidity)
+    public record GreenhouseClimate(TemperatureSetting temperature, HumiditySetting humidity)
     {
         /**
          * Create climate settings from serialized module names.
@@ -453,9 +495,9 @@ public final class GreenhouseBiomeOverlayService
          * @param humidity serialized humidity name
          * @return parsed climate settings, defaulting invalid values to temperate/normal
          */
-        public static ClimateSettings bySerializedNames(final String temperature, final String humidity)
+        public static GreenhouseClimate bySerializedNames(final String temperature, final String humidity)
         {
-            return new ClimateSettings(OverlayTemperature.bySerializedName(temperature), OverlayHumidity.bySerializedName(humidity));
+            return new GreenhouseClimate(TemperatureSetting.bySerializedName(temperature), HumiditySetting.bySerializedName(humidity));
         }
     }
 
@@ -475,56 +517,4 @@ public final class GreenhouseBiomeOverlayService
     {
     }
 
-    public enum OverlayTemperature
-    {
-        COLD,
-        TEMPERATE,
-        HOT;
-
-        /**
-         * Parse a serialized temperature setting.
-         *
-         * @param serializedName serialized temperature name
-         * @return parsed temperature, or temperate when the name is invalid
-         */
-        public static OverlayTemperature bySerializedName(final String serializedName)
-        {
-            return byName(serializedName, TEMPERATE);
-        }
-    }
-
-    public enum OverlayHumidity
-    {
-        DRY,
-        NORMAL,
-        HUMID;
-
-        /**
-         * Parse a serialized humidity setting.
-         *
-         * @param serializedName serialized humidity name
-         * @return parsed humidity, or normal when the name is invalid
-         */
-        public static OverlayHumidity bySerializedName(final String serializedName)
-        {
-            return byName(serializedName, NORMAL);
-        }
-    }
-
-    private static <T extends Enum<T>> T byName(final String serializedName, final T fallback)
-    {
-        if (serializedName == null || serializedName.isBlank())
-        {
-            return fallback;
-        }
-
-        try
-        {
-            return Enum.valueOf(fallback.getDeclaringClass(), serializedName.toUpperCase(Locale.ROOT));
-        }
-        catch (final IllegalArgumentException e)
-        {
-            return fallback;
-        }
-    }
 }

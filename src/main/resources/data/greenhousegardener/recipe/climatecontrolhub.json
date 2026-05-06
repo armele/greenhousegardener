@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "W": {
+      "item": "minecraft:white_wool"
+    },
+    "S": {
+      "item": "minecraft:stone_slab"
+    },
+    "O": {
+      "item": "minecraft:oxidized_copper"
+    },
+    "I": {
+      "item": "minecraft:iron_bars"
+    }
+  },
+  "pattern": [
+    "WWW",
+    "IOI",
+    "SSS"
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:climatecontrolhub"
+  }
+}

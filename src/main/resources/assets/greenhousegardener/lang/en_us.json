@@ -1,10 +1,12 @@
 {
   "block.greenhousegardener.blockhutgreenhouse": "Greenhouse",
+  "block.greenhousegardener.climatecontrolhub": "Climate Control Hub",
   "com.greenhousegardener.core.gui.modules.biome_settings": "Biome Settings",
-  "com.greenhousegardener.core.gui.modules.temperature_controls": "Temperature Adjustment",
-  "com.greenhousegardener.core.gui.modules.humidity_controls": "Humidity Adjustment",
+  "com.greenhousegardener.core.gui.modules.temperature_controls": "Temperature Adjustment Materials",
+  "com.greenhousegardener.core.gui.modules.humidity_controls": "Humidity Adjustment Materials",
   "com.greenhousegardener.core.gui.biome.field": "Field %s",
   "com.greenhousegardener.core.gui.biome.field.header": "Field",
+  "com.greenhousegardener.core.gui.biome.fields.empty": "No eligible fields",
   "com.greenhousegardener.core.gui.biome.field_position": "Field position: %s, %s, %s",
   "com.greenhousegardener.core.gui.biome.temperature": "Temp.",
   "com.greenhousegardener.core.gui.biome.temperature.cold": "Cold",
@@ -14,6 +16,13 @@
   "com.greenhousegardener.core.gui.biome.humidity.dry": "Dry",
   "com.greenhousegardener.core.gui.biome.humidity.normal": "Normal",
   "com.greenhousegardener.core.gui.biome.humidity.humid": "Humid",
+  "com.greenhousegardener.core.gui.biome.balance.title": "Climate Control Units",
+  "com.greenhousegardener.core.gui.biome.balance.temp": "Temp",
+  "com.greenhousegardener.core.gui.biome.balance.hot": "Hot:",
+  "com.greenhousegardener.core.gui.biome.balance.cold": "Cold:",
+  "com.greenhousegardener.core.gui.biome.balance.humidity": "Humidity",
+  "com.greenhousegardener.core.gui.biome.balance.humid": "Humid:",
+  "com.greenhousegardener.core.gui.biome.balance.dry": "Dry:",
   "com.greenhousegardener.core.gui.climate.temperature.hotter": "Make Hotter",
   "com.greenhousegardener.core.gui.climate.temperature.cooler": "Make Cooler",
   "com.greenhousegardener.core.gui.climate.humidity.humid": "Make Humid",
@@ -29,6 +38,8 @@
   "greenhousegardener:horticulturist.job.desc": "Carefully controls the temperature and humidity of the greenhouse to support exotic crops.",
   "greenhousegardener:horticulturist.skills.desc": "Improves biome conversion efficiency.",
   "entity.horticulturist.noglass.at" : "This field needs greenhouse roof repair above %s or I cannot condition the climate properly.",
-  "greenhousegardener.research.effects.blockhutgreenhouse.description": "Allows building of the Greenhouse."
-
+  "entity.horticulturist.biome_ledger.shortage" : "I need more climate materials before converting the field at %s. Missing: %s.",
+  "greenhousegardener.research.effects.blockhutgreenhouse.description": "Allows building of the Greenhouse.",
+  "com.minecolonies.coremod.gui.townhall.stats.fields_transformed" : "Fields Adjusted: %d",
+  "com.greenhousegardener.biomesettings.help" : "Farm fields with a climate control hub underneath them and properly enclosed can have their climate maintained by the horticulturist.\n\nClimate Control Units are used to achieve the modified biome state and are generated from the configured Adjustment materials.\n\nBiomes revert to their natural state when not actively maintained."
 }

@@ -18,23 +18,26 @@ import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Persists a greenhouse field's selected climate axes.
+ * Persists a greenhouse field's selected ownership and climate axes.
  */
-public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, int fieldIndex, int temperatureId, int humidityId) implements IServerboundPayload
+public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, BlockPos fieldPos, int temperatureId, int humidityId, boolean owned) implements IServerboundPayload
 {
     @SuppressWarnings("null")
-    public static final Type<SetGreenhouseBiomeFieldMessage> ID = new Type<>(ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "set_greenhouse_biome_field"));
+    public static final Type<SetGreenhouseBiomeFieldMessage> ID =
+        new Type<>(ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "set_greenhouse_biome_field"));
 
     @SuppressWarnings("null")
     public static final StreamCodec<RegistryFriendlyByteBuf, SetGreenhouseBiomeFieldMessage> STREAM_CODEC = StreamCodec.composite(
         BlockPos.STREAM_CODEC,
         SetGreenhouseBiomeFieldMessage::buildingPos,
-        ByteBufCodecs.INT,
-        SetGreenhouseBiomeFieldMessage::fieldIndex,
+        BlockPos.STREAM_CODEC,
+        SetGreenhouseBiomeFieldMessage::fieldPos,
         ByteBufCodecs.INT,
         SetGreenhouseBiomeFieldMessage::temperatureId,
         ByteBufCodecs.INT,
         SetGreenhouseBiomeFieldMessage::humidityId,
+        ByteBufCodecs.BOOL,
+        SetGreenhouseBiomeFieldMessage::owned,
         SetGreenhouseBiomeFieldMessage::new);
 
     @Override
@@ -49,6 +52,11 @@ public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, int fieldInde
         context.enqueueWork(() -> execute(player));
     }
 
+    /**
+     * Apply the requested field state on the server.
+     *
+     * @param player player who sent the payload
+     */
     private void execute(final Player player)
     {
         if (player == null)
@@ -63,12 +71,31 @@ public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, int fieldInde
         }
 
         final GreenhouseBiomeModule module = building.getModule(GreenhouseBiomeModule.class, candidate -> true);
-        if (module != null)
+        if (module == null)
         {
-            module.setAssignment(fieldIndex, byId(TemperatureSetting.values(), temperatureId, TemperatureSetting.TEMPERATE), byId(HumiditySetting.values(), humidityId, HumiditySetting.NORMAL));
+            return;
+        }
+
+        module.cleanupInvalidOwnedFields();
+        module.setFieldOwned(fieldPos, owned);
+        if (owned)
+        {
+            module.setAssignment(
+                fieldPos,
+                byId(TemperatureSetting.values(), temperatureId, TemperatureSetting.TEMPERATE),
+                byId(HumiditySetting.values(), humidityId, HumiditySetting.NORMAL));
         }
     }
 
+    /**
+     * Safely resolve an enum value by network id.
+     *
+     * @param values enum value array
+     * @param id network id
+     * @param fallback fallback value when the id is invalid
+     * @return the resolved enum value
+     * @param <T> enum type
+     */
     private static <T> T byId(final T[] values, final int id, final T fallback)
     {
         return id >= 0 && id < values.length ? values[id] : fallback;
