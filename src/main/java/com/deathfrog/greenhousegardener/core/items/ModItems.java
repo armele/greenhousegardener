@@ -79,6 +79,8 @@ public final class ModItems
     public static final @Nonnull DeferredItem<Item> sausagePizza = registerFood("sausage_pizza", 3);
     public static final @Nonnull DeferredItem<Item> sourdoughBread = registerFood("sourdough_bread", 1);
     public static final @Nonnull DeferredItem<Item> sourdoughStarter = registerIngredient("sourdough_starter");
+    public static final @Nonnull DeferredItem<Item> spanikopita = registerFood("spanikopita", 2);
+    public static final @Nonnull DeferredItem<Item> spinachSalad = registerFood("spinach_salad", 1);
     public static final @Nonnull DeferredItem<Item> waffles = registerFood("waffles", 2);
 
     private ModItems()

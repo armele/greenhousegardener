@@ -8,7 +8,7 @@
 		"particle": "block/smooth_stone",
 		"bottom": "block/smooth_stone",
 		"chute": "block/polished_andesite",
-		"whitewool": "block/white_wool",
+		"climate_wool": "block/white_wool",
 		"graywool": "block/gray_wool",
 		"bars": "block/iron_bars",
 		"core": "block/oxidized_copper"
@@ -20,12 +20,12 @@
 			"to": [16, 16, 16],
 			"rotation": {"angle": 0, "axis": "y", "origin": [8, 8, 8]},
 			"faces": {
-				"north": {"uv": [0, 7, 16, 9], "texture": "#whitewool"},
-				"east": {"uv": [7, 0, 9, 16], "rotation": 90, "texture": "#whitewool"},
-				"south": {"uv": [0, 7, 16, 9], "texture": "#whitewool"},
-				"west": {"uv": [7, 0, 9, 16], "rotation": 270, "texture": "#whitewool"},
-				"up": {"uv": [0, 0, 16, 16], "texture": "#whitewool"},
-				"down": {"uv": [0, 0, 16, 16], "rotation": 180, "texture": "#whitewool"}
+				"north": {"uv": [0, 7, 16, 9], "texture": "#climate_wool"},
+				"east": {"uv": [7, 0, 9, 16], "rotation": 90, "texture": "#climate_wool"},
+				"south": {"uv": [0, 7, 16, 9], "texture": "#climate_wool"},
+				"west": {"uv": [7, 0, 9, 16], "rotation": 270, "texture": "#climate_wool"},
+				"up": {"uv": [0, 0, 16, 16], "texture": "#climate_wool"},
+				"down": {"uv": [0, 0, 16, 16], "rotation": 180, "texture": "#climate_wool"}
 			}
 		},
 		{

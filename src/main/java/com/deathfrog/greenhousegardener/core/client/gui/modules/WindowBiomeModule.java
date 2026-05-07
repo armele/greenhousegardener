@@ -5,6 +5,7 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.Greenho
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseBiomeModuleView.FieldBiomeView;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
+import com.deathfrog.greenhousegardener.core.network.RefreshGreenhouseBiomeModuleMessage;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseBiomeFieldMessage;
 import com.ldtteam.blockui.Pane;
 import com.ldtteam.blockui.PaneBuilders;
@@ -60,6 +61,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     public void onOpened()
     {
         super.onOpened();
+        new RefreshGreenhouseBiomeModuleMessage(buildingView.getPosition()).sendToServer();
 
         final Image help = findPaneOfTypeByID(IMAGE_HELP, Image.class);
         final AbstractTextBuilder.TooltipBuilder helpTipBuilder = PaneBuilders.tooltipBuilder().hoverPane(help);

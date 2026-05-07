@@ -140,7 +140,19 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public boolean isLedgerUnderLimit(final ClimateItemList list)
     {
-        return getLedgerBalance(list) < getLedgerLimit(list);
+        return isLedgerUnderTarget(list, getLedgerLimit(list));
+    }
+
+    /**
+     * Check if this list can accept more ledgered climate modification power for a specific target balance.
+     *
+     * @param list the target increase or decrease list
+     * @param targetBalance desired ledger balance
+     * @return true when the balance is below the desired target
+     */
+    public boolean isLedgerUnderTarget(final ClimateItemList list, final int targetBalance)
+    {
+        return getLedgerBalance(list) < Math.max(0, targetBalance);
     }
 
     /**
@@ -152,13 +164,26 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int getLedgerRequestCount(final ClimateItemList list, final ItemStack stack)
     {
+        return getLedgerRequestCount(list, stack, getLedgerLimit(list));
+    }
+
+    /**
+     * Calculate a sensible request count for this item based on the remaining balance needed for a target.
+     *
+     * @param list the target increase or decrease list
+     * @param stack selected climate item
+     * @param targetBalance desired ledger balance
+     * @return requested item count, or zero when the item has no modification value
+     */
+    public int getLedgerRequestCount(final ClimateItemList list, final ItemStack stack, final int targetBalance)
+    {
         final int unit = climateModificationUnit(stack);
-        if (unit <= 0 || !isLedgerUnderLimit(list))
+        if (unit <= 0 || !isLedgerUnderTarget(list, targetBalance))
         {
             return 0;
         }
 
-        final int remaining = getLedgerLimit(list) - getLedgerBalance(list);
+        final int remaining = Math.max(0, targetBalance) - getLedgerBalance(list);
         final int requiredItems = Math.max(1, (int) Math.ceil((double) remaining / unit));
         return Math.min(stack.getMaxStackSize(), requiredItems);
     }
@@ -172,7 +197,20 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int ledgerStack(final ClimateItemList list, final ItemStack stack)
     {
-        if (stack.isEmpty() || !stack.is(getAllowedTag(list)) || !isLedgerUnderLimit(list))
+        return ledgerStack(list, stack, getLedgerLimit(list));
+    }
+
+    /**
+     * Add an item stack's climate modification power to a list ledger until a specific target balance is reached.
+     *
+     * @param list the target increase or decrease list
+     * @param stack stack consumed by the horticulturist
+     * @param targetBalance desired ledger balance
+     * @return amount of climate modification power added
+     */
+    public int ledgerStack(final ClimateItemList list, final ItemStack stack, final int targetBalance)
+    {
+        if (stack.isEmpty() || !stack.is(getAllowedTag(list)) || !isLedgerUnderTarget(list, targetBalance))
         {
             return 0;
         }

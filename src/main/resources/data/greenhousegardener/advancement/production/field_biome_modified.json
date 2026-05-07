@@ -1,0 +1,30 @@
+{
+  "parent": "minecolonies:production/build_farmer",
+  "display": {
+    "icon": {
+      "count": 1,
+      "id": "greenhousegardener:climatecontrolhub"
+    },
+    "title": {
+      "translate": "advancements.greenhousegardener.field_biome_modified.title"
+    },
+    "description": {
+      "translate": "advancements.greenhousegardener.field_biome_modified.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "modified_field_biome": {
+      "trigger": "greenhousegardener:field_biome_modified"
+    }
+  },
+  "requirements": [
+    [
+      "modified_field_biome"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

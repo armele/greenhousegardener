@@ -10,6 +10,7 @@ import com.minecolonies.api.colony.buildings.IBuilding;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.Level;
@@ -21,6 +22,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 
@@ -29,12 +31,16 @@ public class BlockClimateControlHub extends Block implements SimpleWaterloggedBl
     public static final String BLOCK_NAME = "climatecontrolhub";
     @SuppressWarnings("null")
     public static final @Nonnull BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
+    @SuppressWarnings("null")
+    public static final @Nonnull EnumProperty<VisualClimate> CLIMATE = EnumProperty.create("climate", VisualClimate.class);
 
     @SuppressWarnings("null")
     public BlockClimateControlHub()
     {
         super(BlockBehaviour.Properties.ofFullCopy(Blocks.SMOOTH_STONE).lightLevel(state -> 6));
-        this.registerDefaultState(this.stateDefinition.any().setValue(WATERLOGGED, Boolean.FALSE));
+        this.registerDefaultState(this.stateDefinition.any()
+            .setValue(WATERLOGGED, Boolean.FALSE)
+            .setValue(CLIMATE, VisualClimate.INACTIVE));
     }
 
     @SuppressWarnings("null")
@@ -43,7 +49,9 @@ public class BlockClimateControlHub extends Block implements SimpleWaterloggedBl
     public BlockState getStateForPlacement(final @Nonnull BlockPlaceContext context)
     {
         final FluidState fluidState = context.getLevel().getFluidState(context.getClickedPos());
-        return super.getStateForPlacement(context).setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER);
+        return super.getStateForPlacement(context)
+            .setValue(WATERLOGGED, fluidState.getType() == Fluids.WATER)
+            .setValue(CLIMATE, VisualClimate.INACTIVE);
     }
 
     @Override
@@ -72,7 +80,34 @@ public class BlockClimateControlHub extends Block implements SimpleWaterloggedBl
     @Override
     protected void createBlockStateDefinition(final @Nonnull StateDefinition.Builder<Block, BlockState> builder)
     {
-        builder.add(WATERLOGGED);
+        builder.add(WATERLOGGED, CLIMATE);
+    }
+
+    public enum VisualClimate implements StringRepresentable
+    {
+        INACTIVE("inactive"),
+        COLD_DRY("cold_dry"),
+        COLD_NORMAL("cold_normal"),
+        COLD_HUMID("cold_humid"),
+        TEMPERATE_DRY("temperate_dry"),
+        TEMPERATE_NORMAL("temperate_normal"),
+        TEMPERATE_HUMID("temperate_humid"),
+        HOT_DRY("hot_dry"),
+        HOT_NORMAL("hot_normal"),
+        HOT_HUMID("hot_humid");
+
+        private final String serializedName;
+
+        VisualClimate(final String serializedName)
+        {
+            this.serializedName = serializedName;
+        }
+
+        @Override
+        public String getSerializedName()
+        {
+            return serializedName;
+        }
     }
 
     /**

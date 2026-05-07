@@ -3,13 +3,17 @@ package com.deathfrog.greenhousegardener;
 import org.slf4j.Logger;
 
 import com.deathfrog.greenhousegardener.api.sounds.ModSoundEvents;
+import com.deathfrog.greenhousegardener.apiimp.initializer.CapabilityInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModBuildingsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.ModJobsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.TileEntityInitializer;
+import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
 import com.deathfrog.greenhousegardener.core.items.ModItems;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
+import com.deathfrog.greenhousegardener.core.world.GreenhouseAmbientPoofService;
 import com.minecolonies.api.creativetab.ModCreativeTabs;
 import com.mojang.logging.LogUtils;
 
@@ -21,7 +25,9 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(GreenhouseGardenerMod.MODID)
@@ -37,10 +43,12 @@ public class GreenhouseGardenerMod {
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(ModBuildingsInitializer::registerBuildings);
+        modEventBus.addListener(CapabilityInitializer::registerCapabilities);
         modEventBus.addListener(NetworkHandler::register);
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+        AdvancementTriggers.DEFERRED_REGISTER.register(modEventBus);
         TileEntityInitializer.BLOCK_ENTITIES.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in.
@@ -104,6 +112,8 @@ public class GreenhouseGardenerMod {
             event.accept(ModItems.sausagePizza);
             event.accept(ModItems.sourdoughBread);
             event.accept(ModItems.sourdoughStarter);
+            event.accept(ModItems.spanikopita);
+            event.accept(ModItems.spinachSalad);
             event.accept(ModItems.waffles);
         }
     }
@@ -112,6 +122,17 @@ public class GreenhouseGardenerMod {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
+    }
+
+    @SuppressWarnings("null")
+    @SubscribeEvent
+    public void onAddReloadListener(final AddReloadListenerEvent event) {
+        event.addListener(GreenhouseClimateRemainderListener.INSTANCE);
+    }
+
+    @SubscribeEvent
+    public void onLevelTick(final LevelTickEvent.Post event) {
+        GreenhouseAmbientPoofService.tick(event.getLevel());
     }
 
     private void onLoadComplete(final FMLLoadCompleteEvent event) {

@@ -20,6 +20,7 @@ public final class NetworkHandler
     {
         final String modVersion = ModList.get().getModContainerById(GreenhouseGardenerMod.MODID).get().getModInfo().getVersion().toString();
         final PayloadRegistrar registrar = event.registrar(GreenhouseGardenerMod.MODID).versioned(modVersion);
+        registrar.playToServer(RefreshGreenhouseBiomeModuleMessage.ID, RefreshGreenhouseBiomeModuleMessage.STREAM_CODEC, RefreshGreenhouseBiomeModuleMessage::onExecute);
         registrar.playToServer(SetGreenhouseBiomeFieldMessage.ID, SetGreenhouseBiomeFieldMessage.STREAM_CODEC, SetGreenhouseBiomeFieldMessage::onExecute);
         registrar.playToServer(SetGreenhouseClimateItemMessage.ID, SetGreenhouseClimateItemMessage.STREAM_CODEC, SetGreenhouseClimateItemMessage::onExecute);
     }

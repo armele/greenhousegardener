@@ -13,10 +13,11 @@ import java.util.function.Predicate;
 import org.apache.logging.log4j.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
 
-import com.deathfrog.greenhousegardener.Config;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.core.ModTags;
+import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub;
+import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub.VisualClimate;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
@@ -44,11 +45,14 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biome;
 
 public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule, IBuildingEventsModule, IAltersRequiredItems
 {
     private static final int MAX_FIELD_SLOTS = 4;
+    private static final int BIOMES_LEVEL1 = 1;
+    private static final int BIOMES_LEVEL2PLUS = 2;
 
     private static final String TAG_ASSIGNMENTS = "assignments";
     private static final String TAG_FIELD_POS = "fieldPos";
@@ -233,6 +237,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         if (current.temperature() == temperature && current.humidity() == humidity)
         {
             clearInvalidSeedForAssignedClimate(immutablePosition);
+            updateHubVisualClimate(immutablePosition, current);
             return;
         }
 
@@ -244,6 +249,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         assignments.put(immutablePosition, assignment);
         clearInvalidSeedForClimate(getServerLevel(), getField(immutablePosition), climate(assignment));
+        updateHubVisualClimate(immutablePosition, assignment);
         markDirty();
     }
 
@@ -285,8 +291,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             }
 
             ownedFields.add(immutablePosition);
-            final FieldBiomeAssignment assignment = assignments.computeIfAbsent(immutablePosition, ignored -> FieldBiomeAssignment.DEFAULT);
-            clearInvalidSeedForClimate(getServerLevel(), getField(immutablePosition), climate(assignment));
+            final ServerLevel level = getServerLevel();
+            final FieldBiomeAssignment assignment = assignments.computeIfAbsent(immutablePosition, ignored -> assignmentForNaturalClimate(level, immutablePosition));
+            clearInvalidSeedForClimate(level, getField(immutablePosition), climate(assignment));
+            updateHubVisualClimate(immutablePosition, assignment);
             markDirty();
             return true;
         }
@@ -324,10 +332,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (building == null || building.getColony() == null)
         {
-            return Config.baseBiomeCount.get();
+            return 0;
         }
 
-        return Config.baseBiomeCount.get()
+        if (building.getBuildingLevel() == 1) return BIOMES_LEVEL1;
+
+        return BIOMES_LEVEL2PLUS
             + (int) Math.floor(building.getColony().getResearchManager().getResearchEffects().getEffectStrength(ModResearch.RESEARCH_EXTRA_BIOMES));
     }
 
@@ -822,6 +832,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         restoreFieldOverlay(fieldPosition);
         clearInvalidSeedForActualBiome(getServerLevel(), getField(fieldPosition));
+        setHubVisualClimate(fieldPosition, VisualClimate.INACTIVE);
         assignments.remove(fieldPosition);
         lastConvertedDays.remove(fieldPosition);
         lastFieldVisitDays.remove(fieldPosition);
@@ -829,6 +840,52 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         firstMissedMaintenanceDays.remove(fieldPosition);
         markDirty();
         return true;
+    }
+
+    /**
+     * Update the visual wool color of the climate hub under a managed field.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param assignment climate assignment represented by the hub
+     */
+    private void updateHubVisualClimate(final BlockPos fieldPosition, final FieldBiomeAssignment assignment)
+    {
+        final ServerLevel level = getServerLevel();
+        if (!isAssignmentModifiedFromNatural(level, fieldPosition, assignment))
+        {
+            setHubVisualClimate(fieldPosition, VisualClimate.INACTIVE);
+            return;
+        }
+
+        setHubVisualClimate(fieldPosition, visualClimate(assignment));
+    }
+
+    /**
+     * Apply a visual state to the climate hub under a field without changing waterlogging.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param visualClimate visual climate state to show
+     */
+    @SuppressWarnings("null")
+    private void setHubVisualClimate(final BlockPos fieldPosition, final VisualClimate visualClimate)
+    {
+        final ServerLevel level = getServerLevel();
+        if (level == null || fieldPosition == null || visualClimate == null)
+        {
+            return;
+        }
+
+        final BlockPos hubPosition = fieldPosition.below();
+
+        if (hubPosition == null) return;
+
+        final BlockState hubState = level.getBlockState(hubPosition);
+        if (!hubState.is(ModBlocks.climateControlHub.get()) || hubState.getValue(BlockClimateControlHub.CLIMATE) == visualClimate)
+        {
+            return;
+        }
+
+        level.setBlock(hubPosition, hubState.setValue(BlockClimateControlHub.CLIMATE, visualClimate), 3);
     }
 
     /**
@@ -963,6 +1020,50 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static GreenhouseClimate climate(final FieldBiomeAssignment assignment)
     {
         return new GreenhouseClimate(assignment.temperature(), assignment.humidity());
+    }
+
+    /**
+     * Convert a field biome assignment into the corresponding climate hub visual.
+     *
+     * @param assignment field biome assignment
+     * @return wool color state for the climate hub
+     */
+    private static VisualClimate visualClimate(final FieldBiomeAssignment assignment)
+    {
+        return switch (assignment.temperature())
+        {
+            case COLD -> switch (assignment.humidity())
+            {
+                case DRY -> VisualClimate.COLD_DRY;
+                case NORMAL -> VisualClimate.COLD_NORMAL;
+                case HUMID -> VisualClimate.COLD_HUMID;
+            };
+            case TEMPERATE -> switch (assignment.humidity())
+            {
+                case DRY -> VisualClimate.TEMPERATE_DRY;
+                case NORMAL -> VisualClimate.TEMPERATE_NORMAL;
+                case HUMID -> VisualClimate.TEMPERATE_HUMID;
+            };
+            case HOT -> switch (assignment.humidity())
+            {
+                case DRY -> VisualClimate.HOT_DRY;
+                case NORMAL -> VisualClimate.HOT_NORMAL;
+                case HUMID -> VisualClimate.HOT_HUMID;
+            };
+        };
+    }
+
+    /**
+     * Build a field assignment matching the field's natural climate.
+     *
+     * @param level server level containing biome data
+     * @param fieldPosition position of the farm field anchor
+     * @return an assignment that does not consume a modified-biome slot
+     */
+    private FieldBiomeAssignment assignmentForNaturalClimate(final ServerLevel level, final BlockPos fieldPosition)
+    {
+        final GreenhouseClimate naturalClimate = naturalClimate(level, fieldPosition);
+        return new FieldBiomeAssignment(naturalClimate.temperature(), naturalClimate.humidity());
     }
 
     /**

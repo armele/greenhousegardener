@@ -1,0 +1,27 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "greenhousegardener:spinach"
+    },
+    {
+      "id": "greenhousegardener:cucumber"
+    },
+    {
+      "id": "minecolonies:tomato"
+    },
+    {
+      "id": "greenhousegardener:apple_cider_vinegar"
+    },
+    {
+      "id": "greenhousegardener:corn_oil"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 1,
+  "result": {
+    "id": "greenhousegardener:spinach_salad"
+  },
+  "show-tooltip": true
+}

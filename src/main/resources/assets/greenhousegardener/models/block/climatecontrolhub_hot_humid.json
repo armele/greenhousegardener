@@ -1,0 +1,6 @@
+{
+  "parent": "greenhousegardener:block/climatecontrolhub",
+  "textures": {
+    "climate_wool": "block/magenta_wool"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "minecraft:water_bucket",
-    "minecraft:kelp"
+    "minecraft:kelp",
+    "minecraft:seagrass"
   ]
 }

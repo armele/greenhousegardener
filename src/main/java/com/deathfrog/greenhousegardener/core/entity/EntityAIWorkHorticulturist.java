@@ -3,7 +3,11 @@ package com.deathfrog.greenhousegardener.core.entity;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
+
 import org.jetbrains.annotations.NotNull;
 
 import com.minecolonies.api.colony.requestsystem.request.IRequest;
@@ -16,6 +20,7 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
 import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitializer;
 import com.deathfrog.greenhousegardener.core.ModTags;
+import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.FieldBiomeAssignment;
@@ -23,8 +28,10 @@ import com.deathfrog.greenhousegardener.core.colony.buildings.modules.Greenhouse
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseHumidityModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseTemperatureModule;
+import com.deathfrog.greenhousegardener.core.util.DomumOrnamentumRoofHelper;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.OverlayResult;
@@ -35,24 +42,28 @@ import com.minecolonies.api.entity.ai.statemachine.states.AIWorkerState;
 import com.minecolonies.api.entity.ai.statemachine.states.IAIState;
 import com.minecolonies.api.util.InventoryUtils;
 import com.minecolonies.api.util.ItemStackUtils;
+import com.minecolonies.api.util.MessageUtils;
 import com.minecolonies.api.util.StatsUtil;
 import com.minecolonies.api.util.constant.StatisticsConstants;
 import com.minecolonies.core.colony.interactionhandling.StandardInteraction;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.entity.ai.workers.AbstractEntityAIInteract;
 import com.minecolonies.core.entity.pathfinding.navigation.EntityNavigationUtils;
+import com.minecolonies.core.util.AdvancementUtils;
 import com.minecolonies.core.util.citizenutils.CitizenItemUtils;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Tuple;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -65,10 +76,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 {
     private static final String FIELDS_TRANSFORMED_STAT = "fields_transformed";
     private static final String FIELDS_MAINTAINED_STAT = "fields_maintained";
+    private static final String FIELD_TRANSFORMED_MESSAGE = "entity.horticulturist.field_transformed";
     private static final String CLIMATE_MATERIAL_REQUEST = "Greenhouse Climate Material";
     private static final double BASE_BIOME_TRANSFORM_XP = 1.0D;
     private static final double BASE_BIOME_MAINTENANCE_XP = 0.25D;
     private static final int BIOME_CELLS_PER_BONUS_XP = 11;
+    private static final int FIELD_TRANSFORMED_POOF_COUNT = 96;
     private static final int MAX_GREENHOUSE_ROOF_HEIGHT = 20;
     private static final int ROOF_INSPECTION_CORNERS = 4;
     private static final int NORMAL_PRIMARY_SKILL = 20;
@@ -96,6 +109,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     private int roofValidationMinZ = 0;
     private int roofValidationMaxZ = 0;
     private int roofInspectionCornerIndex = 0;
+    private IAIState roofValidationSuccessState = DECIDE;
     private ClimateLedgerTarget currentLedgerTarget;
 
     public enum HorticulturistState implements IAIState
@@ -111,6 +125,114 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         public boolean isOkayToEat()
         {
             return true;
+        }
+    }
+
+    private enum RoofColumnCoverage
+    {
+        TAGGED,
+        COVERED,
+        HOLE
+    }
+
+    private enum RoofValidationFailure
+    {
+        NONE,
+        HOLE,
+        INSUFFICIENT_TAGGED_RATIO
+    }
+
+    private record RoofValidationResult(
+        RoofValidationFailure failure,
+        BlockPos holePosition,
+        int taggedColumns,
+        int coveredColumns,
+        int totalColumns,
+        int requiredPercentage)
+    {
+        /**
+         * Create a successful roof validation result when no footprint columns were scanned.
+         *
+         * @param requiredPercentage configured tagged roof percentage requirement
+         * @return successful roof validation result
+         */
+        private static RoofValidationResult valid(final int requiredPercentage)
+        {
+            return valid(0, 0, 0, requiredPercentage);
+        }
+
+        /**
+         * Create a successful roof validation result for a scanned field footprint.
+         *
+         * @param taggedColumns number of columns containing tagged greenhouse roof blocks
+         * @param coveredColumns number of columns covered by tagged or untagged roof-like blocks
+         * @param totalColumns number of scanned field footprint columns
+         * @param requiredPercentage configured tagged roof percentage requirement
+         * @return successful roof validation result
+         */
+        private static RoofValidationResult valid(
+            final int taggedColumns,
+            final int coveredColumns,
+            final int totalColumns,
+            final int requiredPercentage)
+        {
+            return new RoofValidationResult(
+                RoofValidationFailure.NONE,
+                null,
+                taggedColumns,
+                coveredColumns,
+                totalColumns,
+                requiredPercentage);
+        }
+
+        /**
+         * Create a failed roof validation result for the first open ceiling hole.
+         *
+         * @param holePosition field block position whose column has no roof-like block
+         * @param taggedColumns number of tagged columns counted before the hole was found
+         * @param coveredColumns number of covered columns counted before the hole was found
+         * @param totalColumns number of scanned columns including the hole column
+         * @param requiredPercentage configured tagged roof percentage requirement
+         * @return failed roof validation result identifying the hole position
+         */
+        private static RoofValidationResult hole(
+            final BlockPos holePosition,
+            final int taggedColumns,
+            final int coveredColumns,
+            final int totalColumns,
+            final int requiredPercentage)
+        {
+            return new RoofValidationResult(
+                RoofValidationFailure.HOLE,
+                holePosition,
+                taggedColumns,
+                coveredColumns,
+                totalColumns,
+                requiredPercentage);
+        }
+
+        /**
+         * Create a failed roof validation result for insufficient tagged roof coverage.
+         *
+         * @param taggedColumns number of columns containing tagged greenhouse roof blocks
+         * @param coveredColumns number of columns covered by tagged or untagged roof-like blocks
+         * @param totalColumns number of scanned field footprint columns
+         * @param requiredPercentage configured tagged roof percentage requirement
+         * @return failed roof validation result containing the measured coverage ratio
+         */
+        private static RoofValidationResult insufficientRatio(
+            final int taggedColumns,
+            final int coveredColumns,
+            final int totalColumns,
+            final int requiredPercentage)
+        {
+            return new RoofValidationResult(
+                RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO,
+                null,
+                taggedColumns,
+                coveredColumns,
+                totalColumns,
+                requiredPercentage);
         }
     }
 
@@ -144,53 +266,130 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return IDLE;
         }
 
+        clearDecisionState();
+
+        final IAIState ledgerState = nextLedgerState();
+        if (ledgerState != null)
+        {
+            return ledgerState;
+        }
+
+        final GreenhouseBiomeModule module = safeBiomeModule();
+        final List<FarmField> fields = module.getManagedFields();
+
+        final IAIState conversionState = nextConversionFieldState(level, module, fields);
+        if (conversionState != null)
+        {
+            return conversionState;
+        }
+
+        job.resetNoGlassCounter();
+        job.setBiomeLedgerShortage(false);
+
+        final IAIState maintenanceState = nextMaintenanceFieldState(level, module, fields);
+        if (maintenanceState != null)
+        {
+            return maintenanceState;
+        }
+
+        final IAIState seedState = nextSeedUnsetState(level, module, fields);
+        if (seedState != null)
+        {
+            return seedState;
+        }
+
+        return nextWanderState();
+    }
+
+    /**
+     * Clear transient task-selection state before evaluating the next action.
+     */
+    private void clearDecisionState()
+    {
         currentField = null;
         currentFieldIndex = -1;
         currentFieldRange = 0;
         currentRoofInspectionTarget = null;
         currentLedgerTarget = null;
+    }
 
+    /**
+     * Resolve the next immediate climate ledger action, or request material and allow field scanning to continue.
+     *
+     * @return next ledgering/gathering state, or null when no immediate ledger action should interrupt field selection
+     */
+    private IAIState nextLedgerState()
+    {
         final ClimateLedgerTarget ledgerTarget = findClimateLedgerTarget();
-        if (ledgerTarget != null)
+        if (ledgerTarget == null)
         {
-            currentLedgerTarget = ledgerTarget;
-            if (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), ledgerTarget::matches))
-            {
-                return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
-            }
-
-            if (InventoryUtils.hasItemInProvider(building, ledgerTarget::matches))
-            {
-                final BlockPos materialPosition = building.getTileEntity().getPositionOfChestWithItemStack(ledgerTarget::matches);
-                if (materialPosition != null && !building.getPosition().equals(materialPosition))
-                {
-                    needsCurrently = new com.minecolonies.api.util.Tuple<>(ledgerTarget::matches, 1);
-                    return GATHERING_REQUIRED_MATERIALS;
-                }
-
-                return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
-            }
-
-            requestClimateMaterial(ledgerTarget);
+            return null;
         }
 
-        final GreenhouseBiomeModule module = safeBiomeModule();
-        final List<FarmField> fields = module.getManagedFields();
-        final long colonyDay = building.getColony().getDay();
+        currentLedgerTarget = ledgerTarget;
+        final IAIState materialState = materialHandlingState(ledgerTarget);
+        if (materialState != null)
+        {
+            return materialState;
+        }
+
+        requestClimateMaterial(ledgerTarget);
+        return null;
+    }
+
+    /**
+     * Resolve how the worker should handle an available climate material target.
+     *
+     * @param target climate material target to consume or gather
+     * @return ledgering or gathering state, or null when no matching material is currently available
+     */
+    private IAIState materialHandlingState(final ClimateLedgerTarget target)
+    {
+        if (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches))
+        {
+            return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
+        }
+
+        if (!InventoryUtils.hasItemInProvider(building, target::matches))
+        {
+            return null;
+        }
+
+        final BlockPos materialPosition = building.getTileEntity().getPositionOfChestWithItemStack(target::matches);
+        if (materialPosition != null && !building.getPosition().equals(materialPosition))
+        {
+            needsCurrently = new com.minecolonies.api.util.Tuple<>(target::matches, 1);
+            return GATHERING_REQUIRED_MATERIALS;
+        }
+
+        return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
+    }
+
+    /**
+     * Find the next field that needs conversion and can either proceed or trigger immediate material handling.
+     *
+     * @param level server level containing managed fields
+     * @param module biome module holding assignments and field limits
+     * @param fields managed farm fields to scan in priority order
+     * @return next AI state for conversion work, material handling, or null when no conversion field is actionable
+     */
+    private IAIState nextConversionFieldState(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
+    {
         final int modifiedBiomeLimit = module.getModifiedBiomeLimit();
         int maintainedModifiedBiomes = 0;
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
             final FarmField field = fields.get(fieldIndex);
-            if (field == null)
+            final BlockPos fieldPosition = field == null ? null : field.getPosition();
+            if (fieldPosition == null)
             {
                 continue;
             }
 
-            final FieldBiomeAssignment assignment = module.getAssignment(field.getPosition());
+            final FieldBiomeAssignment assignment = module.getAssignment(fieldPosition);
             final GreenhouseClimate climate = climate(assignment);
             final int fieldRange = horizontalRange(field);
-            if (module.isFieldModifiedFromNatural(level, field.getPosition()))
+            if (module.isFieldModifiedFromNatural(level, fieldPosition))
             {
                 if (maintainedModifiedBiomes >= modifiedBiomeLimit)
                 {
@@ -200,20 +399,37 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 maintainedModifiedBiomes++;
             }
 
-            if (!module.wasFieldVisitedOnDay(field.getPosition(), colonyDay)
-                && GreenhouseBiomeOverlayService.needsOverlay(level, field.getPosition(), fieldRange, climate))
+            if (GreenhouseBiomeOverlayService.needsOverlay(level, fieldPosition, fieldRange, climate))
             {
-                currentField = field;
-                currentFieldIndex = fieldIndex;
-                currentFieldRange = fieldRange;
-                startRoofValidation(field);
-                return HorticulturistState.VALIDATE_FIELD_ROOF;
+                final ConversionPreflightResult preflight = conversionPreflight(level, module, field, assignment);
+                if (preflight.skipField())
+                {
+                    continue;
+                }
+
+                if (preflight.nextState() != null)
+                {
+                    return preflight.nextState();
+                }
+
+                return beginFieldRoofValidation(field, fieldIndex, fieldRange, HorticulturistState.TRANSFORM_FIELD);
             }
         }
 
-        job.resetNoGlassCounter();
-        job.setBiomeLedgerShortage(false);
+        return null;
+    }
 
+    /**
+     * Find the next modified field that needs its daily maintenance visit.
+     *
+     * @param level server level containing managed fields
+     * @param module biome module holding field tracking state
+     * @param fields managed farm fields to scan in priority order
+     * @return next AI state for maintenance roof validation, or null when no maintenance field is due
+     */
+    private IAIState nextMaintenanceFieldState(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
+    {
+        final long colonyDay = building.getColony().getDay();
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
             final FarmField field = fields.get(fieldIndex);
@@ -222,12 +438,22 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 continue;
             }
 
-            currentField = field;
-            currentFieldIndex = fieldIndex;
-            currentFieldRange = horizontalRange(field);
-            return HorticulturistState.MAINTAIN_FIELD;
+            return beginFieldRoofValidation(field, fieldIndex, horizontalRange(field), HorticulturistState.MAINTAIN_FIELD);
         }
 
+        return null;
+    }
+
+    /**
+     * Find the next field whose seed must be cleared because it is invalid for the actual biome.
+     *
+     * @param level server level containing managed fields
+     * @param module biome module used to classify seed validity
+     * @param fields managed farm fields to scan in priority order
+     * @return next AI state for seed clearing, or null when no seed needs clearing
+     */
+    private IAIState nextSeedUnsetState(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
+    {
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
             final FarmField field = fields.get(fieldIndex);
@@ -242,8 +468,66 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return HorticulturistState.UNSET_FIELD_SEED;
         }
 
+        return null;
+    }
+
+    /**
+     * Pick an idle wander target inside the greenhouse building.
+     *
+     * @return wander state when a target exists, otherwise idle
+     */
+    private IAIState nextWanderState()
+    {
         currentWanderTarget = randomBuildingPosition();
         return currentWanderTarget == null ? IDLE : HorticulturistState.WANDER_IN_BUILDING;
+    }
+
+    /**
+     * Initialize common field state and send the worker to inspect the field roof.
+     *
+     * @param field selected field
+     * @param fieldIndex selected field index in the managed field list
+     * @param fieldRange selected field horizontal range
+     * @param successState state to enter after successful roof validation
+     * @return roof validation AI state
+     */
+    private IAIState beginFieldRoofValidation(
+        final FarmField field,
+        final int fieldIndex,
+        final int fieldRange,
+        final IAIState successState)
+    {
+        currentField = field;
+        currentFieldIndex = fieldIndex;
+        currentFieldRange = fieldRange;
+        roofValidationSuccessState = successState;
+        startRoofValidation(field);
+        return HorticulturistState.VALIDATE_FIELD_ROOF;
+    }
+
+    /**
+     * Check whether a conversion field is ready, needs immediate material handling, or should be skipped for now.
+     *
+     * @param level server level containing the field
+     * @param module biome module holding field assignments
+     * @param field field that needs biome overlay work
+     * @param assignment requested field climate assignment
+     * @return conversion preflight result describing the next action
+     */
+    private ConversionPreflightResult conversionPreflight(
+        final ServerLevel level,
+        final GreenhouseBiomeModule module,
+        final FarmField field,
+        final FieldBiomeAssignment assignment)
+    {
+        final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
+        if (ledgerShortage(conversionCost, safeTemperatureModule(), safeHumidityModule()).isBlank())
+        {
+            return ConversionPreflightResult.ready();
+        }
+
+        final IAIState restockState = restockShortageLedger(conversionCost, safeTemperatureModule(), safeHumidityModule());
+        return restockState == DECIDE ? ConversionPreflightResult.skippedField() : ConversionPreflightResult.handle(restockState);
     }
 
     /**
@@ -264,7 +548,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
 
-        if (!currentLedgerTarget.module().isLedgerUnderLimit(currentLedgerTarget.list()))
+        if (!currentLedgerTarget.module().isLedgerUnderTarget(currentLedgerTarget.list(), currentLedgerTarget.targetBalance()))
         {
             currentLedgerTarget = null;
             needsCurrently = null;
@@ -294,9 +578,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         CitizenItemUtils.hitBlockWithToolInHand(worker, building.getPosition());
 
         final ItemStack extracted = worker.getInventoryCitizen().extractItem(slot, 1, false);
-        final int ledgered = currentLedgerTarget.module().ledgerStack(currentLedgerTarget.list(), extracted);
+        final int ledgered = currentLedgerTarget.module().ledgerStack(currentLedgerTarget.list(), extracted, currentLedgerTarget.targetBalance());
         if (ledgered > 0)
         {
+            returnClimateMaterialRemainder(extracted);
             incrementActionsDone();
             worker.getCitizenExperienceHandler().addExperience(.2);
             StatsUtil.trackStatByName(building, StatisticsConstants.ITEM_USED, extracted.getItem().getDescriptionId(), extracted.getCount());
@@ -304,8 +589,9 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         if (ledgered > 0
-            && currentLedgerTarget.module().isLedgerUnderLimit(currentLedgerTarget.list())
-            && InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), currentLedgerTarget::matches))
+            && currentLedgerTarget.module().isLedgerUnderTarget(currentLedgerTarget.list(), currentLedgerTarget.targetBalance())
+            && (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), currentLedgerTarget::matches)
+                || InventoryUtils.hasItemInProvider(building, currentLedgerTarget::matches)))
         {
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
@@ -314,6 +600,37 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         needsCurrently = null;
         worker.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         return DECIDE;
+    }
+
+    /**
+     * Return any empty container produced by a consumed climate material to the greenhouse inventory.
+     *
+     * @param consumed stack consumed by the climate material ledger
+     */
+    @SuppressWarnings("null")
+    private void returnClimateMaterialRemainder(final ItemStack consumed)
+    {
+        ItemStack remainder = GreenhouseClimateRemainderListener.INSTANCE.getRemainder(consumed);
+        if (remainder.isEmpty())
+        {
+            return;
+        }
+
+        remainder = InventoryUtils.addItemStackToProviderWithResult(building, remainder);
+        if (!remainder.isEmpty())
+        {
+            remainder = InventoryUtils.addItemStackToItemHandlerWithResult(worker.getInventoryCitizen(), remainder);
+        }
+
+        if (!remainder.isEmpty())
+        {
+            Containers.dropItemStack(
+                worker.level(),
+                building.getPosition().getX() + 0.5D,
+                building.getPosition().getY() + 1.0D,
+                building.getPosition().getZ() + 0.5D,
+                remainder);
+        }
     }
 
     /**
@@ -340,23 +657,68 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return HorticulturistState.VALIDATE_FIELD_ROOF;
         }
 
-        final BlockPos missingRoofPos = findMissingGreenhouseRoof(level, currentField);
-        if (missingRoofPos != null)
+        final RoofValidationResult roofValidation = validateGreenhouseRoof(level, currentField);
+        if (roofValidation.failure() != RoofValidationFailure.NONE)
         {
-            job.tickNoGlass();
-            if (job.checkNoGlass())
-            {
-                worker.getCitizenData().triggerInteraction(new StandardInteraction(
-                    Component.translatable(InteractionInitializer.GREENHOUSE_NOGLASS_AT, formatBlockPos(missingRoofPos)),
-                    Component.translatable(InteractionInitializer.GREENHOUSE_NOGLASS_AT),
-                    ChatPriority.BLOCKING));
-            }
-
+            handleRoofValidationFailure(level, roofValidation);
+            resetCurrentField();
             return DECIDE;
         }
 
         job.resetNoGlassCounter();
-        return HorticulturistState.TRANSFORM_FIELD;
+        final IAIState nextState = roofValidationSuccessState;
+        roofValidationSuccessState = DECIDE;
+        return nextState == null ? DECIDE : nextState;
+    }
+
+    /**
+     * Record and report a roof validation failure for conversion or daily maintenance.
+     *
+     * @param level server level containing the field
+     * @param roofValidation failed roof validation result
+     */
+    private void handleRoofValidationFailure(final ServerLevel level, final RoofValidationResult roofValidation)
+    {
+        if (roofValidationSuccessState == HorticulturistState.MAINTAIN_FIELD && currentField != null)
+        {
+            final GreenhouseBiomeModule module = safeBiomeModule();
+            final BlockPos fieldPosition = currentField.getPosition();
+            final long colonyDay = building.getColony().getDay();
+            final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+            job.setBiomeLedgerShortage(false);
+            triggerRoofInteraction(maintenanceRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, true));
+
+            if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
+            {
+                module.revertFieldToNaturalBiome(fieldPosition);
+                trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
+                building.markDirty();
+            }
+
+            return;
+        }
+
+        triggerRoofInteraction(conversionRoofFailureMessage(roofValidation), roofFailureInteractionKey(roofValidation, false));
+    }
+
+    /**
+     * Show the roof repair interaction after enough repeated roof validation failures.
+     *
+     * @param message player-facing interaction message
+     * @param translationKey interaction translation key
+     */
+    private void triggerRoofInteraction(final Component message, final @Nonnull String translationKey)
+    {
+        job.tickNoGlass();
+        if (!job.checkNoGlass())
+        {
+            return;
+        }
+
+        worker.getCitizenData().triggerInteraction(new StandardInteraction(
+            message,
+            Component.translatable(translationKey),
+            ChatPriority.BLOCKING));
     }
 
     /**
@@ -386,6 +748,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final String shortage = ledgerShortage(conversionCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
         {
+            final IAIState restockState = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
+            if (restockState != null)
+            {
+                resetCurrentField();
+                return restockState;
+            }
+
             job.setBiomeLedgerShortage(true);
             module.recordFieldVisited(fieldPosition, building.getColony().getDay());
             worker.getCitizenData().triggerInteraction(new StandardInteraction(
@@ -410,9 +779,11 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             debitConversionLedgers(conversionCost, temperatureModule, humidityModule);
             module.recordFieldConverted(fieldPosition, building.getColony().getDay());
+            announceFieldTransformed(level, fieldPosition, currentFieldRange, assignment);
             incrementActionsDone();
             worker.getCitizenExperienceHandler().addExperience(BASE_BIOME_TRANSFORM_XP + (double) result.changedCells() / BIOME_CELLS_PER_BONUS_XP);
             StatsUtil.trackStat(building, FIELDS_TRANSFORMED_STAT, 1);
+            AdvancementUtils.TriggerAdvancementPlayersForColony(building.getColony(), AdvancementTriggers.FIELD_BIOME_MODIFIED.get()::trigger);
             module.markDirty();
             building.markDirty();
         }
@@ -450,6 +821,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final String shortage = ledgerShortage(maintenanceCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
         {
+            final IAIState restockState = restockShortageLedger(maintenanceCost, temperatureModule, humidityModule);
+            if (restockState != null)
+            {
+                resetCurrentField();
+                return restockState;
+            }
+
             final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
             job.setBiomeLedgerShortage(true);
             worker.getCitizenData().triggerInteraction(new StandardInteraction(
@@ -572,6 +950,103 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Try to stock a ledger up to the amount required by a pending conversion or maintenance cost.
+     *
+     * @param cost required climate costs
+     * @param temperatureModule temperature ledger module
+     * @param humidityModule humidity ledger module
+     * @return next state while stocking can proceed or wait, otherwise null to report the shortage
+     */
+    private IAIState restockShortageLedger(
+        final BiomeConversionCost cost,
+        final GreenhouseTemperatureModule temperatureModule,
+        final GreenhouseHumidityModule humidityModule)
+    {
+        final ClimateLedgerTarget target = findShortageLedgerTarget(cost, temperatureModule, humidityModule);
+        if (target == null)
+        {
+            return null;
+        }
+
+        currentLedgerTarget = target;
+        job.setBiomeLedgerShortage(false);
+
+        final IAIState materialState = materialHandlingState(target);
+        if (materialState != null)
+        {
+            return materialState;
+        }
+
+        requestClimateMaterial(target);
+        return DECIDE;
+    }
+
+    /**
+     * Find the first selected material that can feed a ledger whose balance is below a required cost.
+     *
+     * @param cost required climate costs
+     * @param temperatureModule temperature ledger module
+     * @param humidityModule humidity ledger module
+     * @return target material and required balance, or null when no selected material can satisfy a shortage
+     */
+    private ClimateLedgerTarget findShortageLedgerTarget(
+        final BiomeConversionCost cost,
+        final GreenhouseTemperatureModule temperatureModule,
+        final GreenhouseHumidityModule humidityModule)
+    {
+        ClimateLedgerTarget target = shortageLedgerTarget(temperatureModule, ClimateItemList.INCREASE, cost.hot());
+        if (target != null)
+        {
+            return target;
+        }
+
+        target = shortageLedgerTarget(temperatureModule, ClimateItemList.DECREASE, cost.cold());
+        if (target != null)
+        {
+            return target;
+        }
+
+        target = shortageLedgerTarget(humidityModule, ClimateItemList.INCREASE, cost.humid());
+        if (target != null)
+        {
+            return target;
+        }
+
+        return shortageLedgerTarget(humidityModule, ClimateItemList.DECREASE, cost.dry());
+    }
+
+    /**
+     * Build a demand-aware ledger target for one climate material list.
+     *
+     * @param module climate item module
+     * @param list increase or decrease list
+     * @param requiredBalance required ledger balance
+     * @return selected material target, or null when the list is already sufficient or has no valid selection
+     */
+    private ClimateLedgerTarget shortageLedgerTarget(
+        final GreenhouseClimateItemModule module,
+        final ClimateItemList list,
+        final int requiredBalance)
+    {
+        if (!module.isLedgerUnderTarget(list, requiredBalance))
+        {
+            return null;
+        }
+
+        for (final ItemStorage item : module.getItems(list))
+        {
+            final ItemStack stack = item.getItemStack();
+            final int requestCount = module.getLedgerRequestCount(list, stack, requiredBalance);
+            if (requestCount > 0)
+            {
+                return new ClimateLedgerTarget(module, list, stack.copy(), requestCount, Math.max(0, item.getAmount()), requiredBalance);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Find the next selected climate item whose ledger is below its configured limit.
      *
      * @return target climate material to fetch or consume, or null when no ledger needs topping up
@@ -583,7 +1058,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             for (final ClimateItemList list : ClimateItemList.values())
             {
-                if (!module.isLedgerUnderLimit(list))
+                final int targetBalance = module.getLedgerLimit(list);
+                if (!module.isLedgerUnderTarget(list, targetBalance))
                 {
                     continue;
                 }
@@ -591,13 +1067,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 for (final ItemStorage item : module.getItems(list))
                 {
                     final ItemStack stack = item.getItemStack();
-                    final int requestCount = module.getLedgerRequestCount(list, stack);
+                    final int requestCount = module.getLedgerRequestCount(list, stack, targetBalance);
                     if (requestCount <= 0)
                     {
                         continue;
                     }
 
-                    final ClimateLedgerTarget target = new ClimateLedgerTarget(module, list, stack.copy(), requestCount, Math.max(0, item.getAmount()));
+                    final ClimateLedgerTarget target = new ClimateLedgerTarget(module, list, stack.copy(), requestCount, Math.max(0, item.getAmount()), targetBalance);
                     if (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches)
                         || InventoryUtils.hasItemInProvider(building, target::matches))
                     {
@@ -1134,62 +1610,182 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
-     * Check a single field column for an accepted roof block.
-     *
-     * @param level the server level containing the field column
-     * @param fieldBlock the block position at field height whose vertical column should be inspected
-     * @return true when a block tagged as a valid greenhouse roof is found above the field block within the allowed height
-     */
-    private static boolean hasGreenhouseRoofAbove(final ServerLevel level, final BlockPos fieldBlock)
-    {
-        final int maxY = Math.min(level.getMaxBuildHeight() - 1, fieldBlock.getY() + MAX_GREENHOUSE_ROOF_HEIGHT);
-
-        for (int y = fieldBlock.getY() + 1; y <= maxY; y++)
-        {
-            final BlockPos roofPos = new BlockPos(fieldBlock.getX(), y, fieldBlock.getZ());
-            final BlockState roofState = level.getBlockState(roofPos);
-            if (roofState.is(ModTags.BLOCKS.GREENHOUSE_ROOF))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Find the first field block whose vertical column lacks an accepted greenhouse roof block.
+     * Validate field roof coverage and greenhouse material ratio.
      *
      * @param level the server level containing the field
      * @param field the field whose footprint should be scanned
-     * @return the first field block requiring roof repair, or null when the complete footprint passes
+     * @return roof validation result for the complete footprint
      */
-    private static BlockPos findMissingGreenhouseRoof(final ServerLevel level, final FarmField field)
+    private static RoofValidationResult validateGreenhouseRoof(final ServerLevel level, final FarmField field)
     {
         final BlockPos center = field.getPosition();
         if (center == null)
         {
-            return null;
+            return RoofValidationResult.valid(Config.roofPercentage.get());
         }
 
         final int minX = center.getX() - field.getRadius(Direction.WEST);
         final int maxX = center.getX() + field.getRadius(Direction.EAST);
         final int minZ = center.getZ() - field.getRadius(Direction.NORTH);
         final int maxZ = center.getZ() + field.getRadius(Direction.SOUTH);
+        final int requiredPercentage = Config.roofPercentage.get();
+        int taggedColumns = 0;
+        int coveredColumns = 0;
+        int totalColumns = 0;
 
         for (int x = minX; x <= maxX; x++)
         {
             for (int z = minZ; z <= maxZ; z++)
             {
                 final BlockPos fieldBlock = new BlockPos(x, center.getY(), z);
-                if (!hasGreenhouseRoofAbove(level, fieldBlock))
+                final RoofColumnCoverage coverage = roofColumnCoverage(level, fieldBlock);
+                totalColumns++;
+                if (coverage == RoofColumnCoverage.HOLE)
                 {
-                    return fieldBlock;
+                    return RoofValidationResult.hole(fieldBlock, taggedColumns, coveredColumns, totalColumns, requiredPercentage);
+                }
+
+                coveredColumns++;
+                if (coverage == RoofColumnCoverage.TAGGED)
+                {
+                    taggedColumns++;
                 }
             }
         }
 
-        return null;
+        if (totalColumns > 0 && (double) taggedColumns / (double) totalColumns < requiredPercentage / 100.0D)
+        {
+            return RoofValidationResult.insufficientRatio(taggedColumns, coveredColumns, totalColumns, requiredPercentage);
+        }
+
+        return RoofValidationResult.valid(taggedColumns, coveredColumns, totalColumns, requiredPercentage);
+    }
+
+    /**
+     * Classify a single field column as tagged roof, covered ceiling, or hole.
+     *
+     * @param level the server level containing the field column
+     * @param fieldBlock the block position at field height whose vertical column should be inspected
+     * @return roof coverage classification for the column
+     */
+    private static RoofColumnCoverage roofColumnCoverage(final ServerLevel level, final BlockPos fieldBlock)
+    {
+        final int maxY = Math.min(level.getMaxBuildHeight() - 1, fieldBlock.getY() + MAX_GREENHOUSE_ROOF_HEIGHT);
+        boolean covered = false;
+
+        for (int y = fieldBlock.getY() + 1; y <= maxY; y++)
+        {
+            final BlockPos roofPos = new BlockPos(fieldBlock.getX(), y, fieldBlock.getZ());
+            final BlockState roofState = level.getBlockState(roofPos);
+
+            if (roofState == null) return RoofColumnCoverage.HOLE;
+
+            if (isGreenhouseRoofMaterial(level, roofPos, roofState))
+            {
+                return RoofColumnCoverage.TAGGED;
+            }
+
+            if (isRoofLikeBlock(level, roofPos, roofState))
+            {
+                covered = true;
+            }
+        }
+
+        return covered ? RoofColumnCoverage.COVERED : RoofColumnCoverage.HOLE;
+    }
+
+    /**
+     * Check whether a block counts toward the greenhouse roof material ratio.
+     *
+     * @param level server level containing the block
+     * @param roofPos block position to inspect
+     * @param roofState block state to inspect
+     * @return true when the block or one of its Domum Ornamentum component materials is tagged as greenhouse roof material
+     */
+    private static boolean isGreenhouseRoofMaterial(final @Nonnull ServerLevel level, final @Nonnull BlockPos roofPos, final @Nonnull BlockState roofState)
+    {
+        return roofState.is(ModTags.BLOCKS.GREENHOUSE_ROOF)
+            || DomumOrnamentumRoofHelper.hasTaggedDomumMaterial(level, roofPos, roofState);
+    }
+
+    /**
+     * Check whether an untagged block can count as a physical ceiling for hole detection.
+     *
+     * @param level server level containing the block
+     * @param roofPos block position to inspect
+     * @param roofState block state to inspect
+     * @return true when the block is substantial enough to prevent an open-sky hole
+     */
+    private static boolean isRoofLikeBlock(final @Nonnull ServerLevel level, final @Nonnull BlockPos roofPos, final @Nonnull BlockState roofState)
+    {
+        return !roofState.isAir()
+            && (roofState.isCollisionShapeFullBlock(level, roofPos) || roofState.isFaceSturdy(level, roofPos, Direction.DOWN));
+    }
+
+    /**
+     * Resolve the interaction key for a roof validation failure.
+     *
+     * @param roofValidation failed roof validation result
+     * @param maintenance true when the failure happened during daily maintenance
+     * @return translation key matching the failure type and work context
+     */
+    private static @Nonnull String roofFailureInteractionKey(final RoofValidationResult roofValidation, final boolean maintenance)
+    {
+        if (roofValidation.failure() == RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO)
+        {
+            return maintenance
+                ? InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO
+                : InteractionInitializer.GREENHOUSE_ROOF_RATIO;
+        }
+
+        return maintenance
+            ? InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_NOGLASS
+            : InteractionInitializer.GREENHOUSE_NOGLASS_AT;
+    }
+
+    /**
+     * Build the conversion-specific roof validation failure message.
+     *
+     * @param roofValidation failed roof validation result
+     * @return translated interaction message for conversion roof failure
+     */
+    private static Component conversionRoofFailureMessage(final RoofValidationResult roofValidation)
+    {
+        if (roofValidation.failure() == RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO)
+        {
+            return Component.translatable(
+                InteractionInitializer.GREENHOUSE_ROOF_RATIO,
+                formatRoofCoveragePercentage(roofValidation),
+                roofValidation.requiredPercentage());
+        }
+
+        return Component.translatable(
+            InteractionInitializer.GREENHOUSE_NOGLASS_AT,
+            formatBlockPos(roofValidation.holePosition()));
+    }
+
+    /**
+     * Build the maintenance-specific roof validation failure message.
+     *
+     * @param fieldPosition field anchor position being maintained
+     * @param roofValidation failed roof validation result
+     * @return translated interaction message for maintenance roof failure
+     */
+    private static Component maintenanceRoofFailureMessage(final BlockPos fieldPosition, final RoofValidationResult roofValidation)
+    {
+        if (roofValidation.failure() == RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO)
+        {
+            return Component.translatable(
+                InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO,
+                formatBlockPos(fieldPosition),
+                formatRoofCoveragePercentage(roofValidation),
+                roofValidation.requiredPercentage());
+        }
+
+        return Component.translatable(
+            InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_NOGLASS,
+            formatBlockPos(fieldPosition),
+            formatBlockPos(roofValidation.holePosition()));
     }
 
     /**
@@ -1264,6 +1860,29 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Format tagged roof coverage as a percentage for player-facing interaction text.
+     *
+     * @param roofValidation roof validation result containing scanned column counts
+     * @return formatted percentage without the percent sign
+     */
+    private static String formatRoofCoveragePercentage(final RoofValidationResult roofValidation)
+    {
+        if (roofValidation.totalColumns() <= 0)
+        {
+            return "0";
+        }
+
+        final double percentage = (double) roofValidation.taggedColumns() * 100.0D / (double) roofValidation.totalColumns();
+        final double rounded = Math.floor(percentage * 10.0D) / 10.0D;
+        if (rounded == Math.floor(rounded))
+        {
+            return String.format(Locale.ROOT, "%.0f", rounded);
+        }
+
+        return String.format(Locale.ROOT, "%.1f", rounded);
+    }
+
+    /**
      * Format a block position for player-facing interaction text.
      *
      * @param pos the block position to display
@@ -1275,6 +1894,42 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Notify nearby colony players and show a soft particle burst over a newly converted field.
+     *
+     * @param level server level containing the field
+     * @param fieldPosition field anchor position
+     * @param fieldRange horizontal field range
+     * @param assignment climate applied to the field
+     */
+    @SuppressWarnings("null")
+    private void announceFieldTransformed(
+        final ServerLevel level,
+        final BlockPos fieldPosition,
+        final int fieldRange,
+        final FieldBiomeAssignment assignment)
+    {
+        MessageUtils.format(Component.translatable(
+            FIELD_TRANSFORMED_MESSAGE,
+            formatBlockPos(fieldPosition),
+            Component.translatable("com.greenhousegardener.core.gui.biome.temperature." + assignment.temperature().getSerializedName()),
+            Component.translatable("com.greenhousegardener.core.gui.biome.humidity." + assignment.humidity().getSerializedName())))
+            .sendTo(building.getColony())
+            .forAllPlayers();
+
+        final double spread = Math.max(1.0D, fieldRange);
+        level.sendParticles(
+            ParticleTypes.POOF,
+            fieldPosition.getX() + 0.5D,
+            fieldPosition.getY() + 1.0D,
+            fieldPosition.getZ() + 0.5D,
+            FIELD_TRANSFORMED_POOF_COUNT,
+            spread,
+            0.75D,
+            spread,
+            0.03D);
+    }
+
+    /**
      * Clear the current field and roof validation state.
      */
     private void resetCurrentField()
@@ -1283,6 +1938,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         currentFieldIndex = -1;
         currentFieldRange = 0;
         currentRoofInspectionTarget = null;
+        roofValidationSuccessState = DECIDE;
     }
 
     /**
@@ -1345,6 +2001,46 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Conversion preflight outcome used while scanning candidate fields.
+     *
+     * @param nextState immediate material-handling state, or null when no immediate state should run
+     * @param skipField true when the current field is blocked for now and the scan should continue
+     */
+    private record ConversionPreflightResult(IAIState nextState, boolean skipField)
+    {
+        /**
+         * Create a result for a field that can proceed to roof validation and conversion.
+         *
+         * @return ready preflight result
+         */
+        private static ConversionPreflightResult ready()
+        {
+            return new ConversionPreflightResult(null, false);
+        }
+
+        /**
+         * Create a result for a field that has to wait for requested material.
+         *
+         * @return skipped-field preflight result
+         */
+        private static ConversionPreflightResult skippedField()
+        {
+            return new ConversionPreflightResult(null, true);
+        }
+
+        /**
+         * Create a result for an immediate material-handling state.
+         *
+         * @param nextState state that should run before field conversion continues
+         * @return material-handling preflight result
+         */
+        private static ConversionPreflightResult handle(final IAIState nextState)
+        {
+            return new ConversionPreflightResult(nextState, false);
+        }
+    }
+
+    /**
      * A selected climate material and the module ledger it should feed.
      */
     private record ClimateLedgerTarget(
@@ -1352,7 +2048,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         ClimateItemList list,
         ItemStack stack,
         int requestCount,
-        int protectedQuantity)
+        int protectedQuantity,
+        int targetBalance)
     {
         /**
          * Check whether a stack is the target climate material.

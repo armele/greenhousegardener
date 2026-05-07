@@ -1,10 +1,44 @@
 {
-  "variants": {
-    "waterlogged=false": {
-      "model": "greenhousegardener:block/climatecontrolhub"
+  "multipart": [
+    {
+      "when": { "climate": "inactive" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub" }
     },
-    "waterlogged=true": {
-      "model": "greenhousegardener:block/climatecontrolhub"
+    {
+      "when": { "climate": "cold_dry" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_cold_dry" }
+    },
+    {
+      "when": { "climate": "cold_normal" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_cold_normal" }
+    },
+    {
+      "when": { "climate": "cold_humid" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_cold_humid" }
+    },
+    {
+      "when": { "climate": "temperate_dry" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_temperate_dry" }
+    },
+    {
+      "when": { "climate": "temperate_normal" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_temperate_normal" }
+    },
+    {
+      "when": { "climate": "temperate_humid" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_temperate_humid" }
+    },
+    {
+      "when": { "climate": "hot_dry" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_hot_dry" }
+    },
+    {
+      "when": { "climate": "hot_normal" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_hot_normal" }
+    },
+    {
+      "when": { "climate": "hot_humid" },
+      "apply": { "model": "greenhousegardener:block/climatecontrolhub_hot_humid" }
     }
-  }
+  ]
 }
