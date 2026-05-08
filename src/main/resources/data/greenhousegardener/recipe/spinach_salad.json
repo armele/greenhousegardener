@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:spinach"
+    },
+    {
+      "item": "greenhousegardener:cucumber"
+    },
+    {
+      "item": "minecolonies:tomato"
+    },
+    {
+      "item": "greenhousegardener:apple_cider_vinegar"
+    },
+    {
+      "item": "greenhousegardener:corn_oil"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:spinach_salad"
+  }
+}

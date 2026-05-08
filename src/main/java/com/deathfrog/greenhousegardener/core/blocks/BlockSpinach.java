@@ -1,6 +1,7 @@
 package com.deathfrog.greenhousegardener.core.blocks;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.minecolonies.api.items.ModTags;
 import com.minecolonies.core.blocks.MinecoloniesCropBlock;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Blocks;
@@ -13,7 +14,7 @@ public class BlockSpinach extends MinecoloniesCropBlock
 
     public BlockSpinach()
     {
-        super(BLOCK_NAME, com.minecolonies.api.blocks.ModBlocks.farmland, List.of(Blocks.SHORT_GRASS, Blocks.TALL_GRASS, Blocks.FERN), null);
+        super(BLOCK_NAME, com.minecolonies.api.blocks.ModBlocks.farmland, List.of(Blocks.SHORT_GRASS, Blocks.TALL_GRASS, Blocks.FERN), ModTags.temperateBiomes);
     }
 
     @Override

@@ -38,7 +38,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     private static final String TAG_PROTECTED_QUANTITY = "protectedQuantity";
     private static final String TAG_LEDGER_INCREASE = "ledgerIncrease";
     private static final String TAG_LEDGER_DECREASE = "ledgerDecrease";
-    public static final int DEFAULT_LEDGER_LIMIT = 100;
+    public static final int DEFAULT_LEDGER_LIMIT = 500;
 
     private final Map<ClimateItemList, Set<ItemStorage>> items = new EnumMap<>(ClimateItemList.class);
     private final Map<ClimateItemList, Integer> ledgerBalances = new EnumMap<>(ClimateItemList.class);

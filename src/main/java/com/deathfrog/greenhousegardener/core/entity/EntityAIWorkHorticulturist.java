@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import javax.annotation.Nonnull;
 
@@ -16,6 +17,8 @@ import com.minecolonies.api.colony.requestsystem.requestable.StackList;
 import com.minecolonies.api.colony.requestsystem.token.IToken;
 import com.minecolonies.api.crafting.ItemStorage;
 import com.deathfrog.greenhousegardener.Config;
+import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.ModCommands;
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
 import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitializer;
@@ -32,10 +35,12 @@ import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemai
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseHumidityModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseTemperatureModule;
 import com.deathfrog.greenhousegardener.core.util.DomumOrnamentumRoofHelper;
+import com.deathfrog.greenhousegardener.core.util.TraceUtils;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.OverlayResult;
 import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.buildings.workerbuildings.IWareHouse;
 import com.minecolonies.api.colony.interactionhandling.ChatPriority;
 import com.minecolonies.api.entity.ai.statemachine.AITarget;
 import com.minecolonies.api.entity.ai.statemachine.states.AIWorkerState;
@@ -102,7 +107,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     private FarmField currentField;
     private int currentFieldIndex = -1;
     private int currentFieldRange = 0;
-    private BlockPos currentWanderTarget;
     private BlockPos currentRoofInspectionTarget;
     private int roofValidationMinX = 0;
     private int roofValidationMaxX = 0;
@@ -253,6 +257,11 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         worker.setCanPickUpLoot(true);
     }
 
+    private static void trace(final Runnable loggingStatement)
+    {
+        TraceUtils.dynamicTrace(ModCommands.TRACE_HORTICULTURIST, loggingStatement);
+    }
+
     /**
      * Find the next greenhouse field whose actual biome area does not match its requested settings.
      *
@@ -263,6 +272,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ServerLevel level = serverLevel();
         if (level == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Horticulturist decide() has no server level; idling."));
             return IDLE;
         }
 
@@ -271,6 +281,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final IAIState ledgerState = nextLedgerState();
         if (ledgerState != null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected ledger state {}.", building.getColony().getID(), ledgerState));
             return ledgerState;
         }
 
@@ -280,6 +291,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final IAIState conversionState = nextConversionFieldState(level, module, fields);
         if (conversionState != null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected conversion state {} for field {}.",
+                building.getColony().getID(), conversionState, formatCurrentField()));
             return conversionState;
         }
 
@@ -289,16 +302,21 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final IAIState maintenanceState = nextMaintenanceFieldState(level, module, fields);
         if (maintenanceState != null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected maintenance state {} for field {}.",
+                building.getColony().getID(), maintenanceState, formatCurrentField()));
             return maintenanceState;
         }
 
         final IAIState seedState = nextSeedUnsetState(level, module, fields);
         if (seedState != null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected seed clearing for field {}.",
+                building.getColony().getID(), formatCurrentField()));
             return seedState;
         }
 
-        return nextWanderState();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() found no direct work; wandering in building.", building.getColony().getID()));
+        return wanderInBuilding();
     }
 
     /**
@@ -323,17 +341,24 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ClimateLedgerTarget ledgerTarget = findClimateLedgerTarget();
         if (ledgerTarget == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist found no climate ledger below top-up levels.", building.getColony().getID()));
             return null;
         }
 
         currentLedgerTarget = ledgerTarget;
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist selected climate ledger target {}.",
+            building.getColony().getID(), formatLedgerTarget(ledgerTarget)));
         final IAIState materialState = materialHandlingState(ledgerTarget);
         if (materialState != null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist climate ledger target {} can proceed with state {}.",
+                building.getColony().getID(), formatLedgerTarget(ledgerTarget), materialState));
             return materialState;
         }
 
         requestClimateMaterial(ledgerTarget);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist requested climate material for {} and continued field scanning.",
+            building.getColony().getID(), formatLedgerTarget(ledgerTarget)));
         return null;
     }
 
@@ -347,11 +372,15 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         if (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist has climate material on worker for {}.",
+                building.getColony().getID(), formatLedgerTarget(target)));
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
 
         if (!InventoryUtils.hasItemInProvider(building, target::matches))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist has no available climate material in hut for {}.",
+                building.getColony().getID(), formatLedgerTarget(target)));
             return null;
         }
 
@@ -359,9 +388,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         if (materialPosition != null && !building.getPosition().equals(materialPosition))
         {
             needsCurrently = new com.minecolonies.api.util.Tuple<>(target::matches, 1);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist gathering climate material for {} from {}.",
+                building.getColony().getID(), formatLedgerTarget(target), formatBlockPos(materialPosition)));
             return GATHERING_REQUIRED_MATERIALS;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist will ledger climate material for {} from hut inventory.",
+            building.getColony().getID(), formatLedgerTarget(target)));
         return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
     }
 
@@ -376,6 +409,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     private IAIState nextConversionFieldState(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
     {
         final int modifiedBiomeLimit = module.getModifiedBiomeLimit();
+        final long colonyDay = building.getColony().getDay();
         int maintainedModifiedBiomes = 0;
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
@@ -399,19 +433,34 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 maintainedModifiedBiomes++;
             }
 
+            if (module.wasFieldConversionBlockedOnDay(fieldPosition, colonyDay))
+            {
+                final String fieldDescription = formatField(fieldIndex, fieldPosition);
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because conversion was already blocked on colony day {}.",
+                    building.getColony().getID(), fieldDescription, colonyDay));
+                continue;
+            }
+
             if (GreenhouseBiomeOverlayService.needsOverlay(level, fieldPosition, fieldRange, climate))
             {
+                final String fieldDescription = formatField(fieldIndex, fieldPosition);
                 final ConversionPreflightResult preflight = conversionPreflight(level, module, field, assignment);
                 if (preflight.skipField())
                 {
+                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because shortage restocking was deferred.",
+                        building.getColony().getID(), fieldDescription));
                     continue;
                 }
 
                 if (preflight.nextState() != null)
                 {
+                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion field {} preflight selected state {}.",
+                        building.getColony().getID(), fieldDescription, preflight.nextState()));
                     return preflight.nextState();
                 }
 
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist selected conversion field {} with range {}.",
+                    building.getColony().getID(), fieldDescription, fieldRange));
                 return beginFieldRoofValidation(field, fieldIndex, fieldRange, HorticulturistState.TRANSFORM_FIELD);
             }
         }
@@ -438,6 +487,9 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 continue;
             }
 
+            final String fieldDescription = formatField(fieldIndex, field.getPosition());
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist selected maintenance field {} for colony day {}.",
+                building.getColony().getID(), fieldDescription, colonyDay));
             return beginFieldRoofValidation(field, fieldIndex, horizontalRange(field), HorticulturistState.MAINTAIN_FIELD);
         }
 
@@ -465,21 +517,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             currentField = field;
             currentFieldIndex = fieldIndex;
             currentFieldRange = horizontalRange(field);
+            final String fieldDescription = formatField(fieldIndex, field.getPosition());
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist selected seed clearing field {}.",
+                building.getColony().getID(), fieldDescription));
             return HorticulturistState.UNSET_FIELD_SEED;
         }
 
         return null;
-    }
-
-    /**
-     * Pick an idle wander target inside the greenhouse building.
-     *
-     * @return wander state when a target exists, otherwise idle
-     */
-    private IAIState nextWanderState()
-    {
-        currentWanderTarget = randomBuildingPosition();
-        return currentWanderTarget == null ? IDLE : HorticulturistState.WANDER_IN_BUILDING;
     }
 
     /**
@@ -502,6 +546,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         currentFieldRange = fieldRange;
         roofValidationSuccessState = successState;
         startRoofValidation(field);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist beginning roof validation for field {} range {} then state {}.",
+            building.getColony().getID(), formatCurrentField(), fieldRange, successState));
         return HorticulturistState.VALIDATE_FIELD_ROOF;
     }
 
@@ -523,10 +569,14 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
         if (ledgerShortage(conversionCost, safeTemperatureModule(), safeHumidityModule()).isBlank())
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight ready for field {} with cost {}.",
+                building.getColony().getID(), formatBlockPos(field.getPosition()), conversionCost));
             return ConversionPreflightResult.ready();
         }
 
         final IAIState restockState = restockShortageLedger(conversionCost, safeTemperatureModule(), safeHumidityModule());
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight shortage for field {}; restock state {}.",
+            building.getColony().getID(), formatBlockPos(field.getPosition()), restockState));
         return restockState == DECIDE ? ConversionPreflightResult.skippedField() : ConversionPreflightResult.handle(restockState);
     }
 
@@ -540,11 +590,14 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         if (currentLedgerTarget == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist ledgerClimateMaterial() has no current target.", building.getColony().getID()));
             return DECIDE;
         }
 
         if (!walkToBuildingWithSkillSpeed())
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist walking to hut to ledger {}.",
+                building.getColony().getID(), formatLedgerTarget(currentLedgerTarget)));
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
 
@@ -586,6 +639,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             worker.getCitizenExperienceHandler().addExperience(.2);
             StatsUtil.trackStatByName(building, StatisticsConstants.ITEM_USED, extracted.getItem().getDescriptionId(), extracted.getCount());
             building.markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist ledgered {} for {}.",
+                building.getColony().getID(), extracted, formatLedgerTarget(currentLedgerTarget)));
         }
 
         if (ledgered > 0
@@ -643,23 +698,31 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ServerLevel level = serverLevel();
         if (level == null || currentField == null || currentRoofInspectionTarget == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist roof validation lost context; level present? {}, field {}, target {}.",
+                building.getColony().getID(), level != null, formatCurrentField(), currentRoofInspectionTarget));
             resetCurrentField();
             return DECIDE;
         }
 
         if (!walkToSafePosWithSkillSpeed(currentRoofInspectionTarget))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist walking to roof inspection target {} for field {}.",
+                building.getColony().getID(), formatBlockPos(currentRoofInspectionTarget), formatCurrentField()));
             return HorticulturistState.VALIDATE_FIELD_ROOF;
         }
 
         if (advanceRoofInspectionTarget())
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist advanced to roof inspection target {} for field {}.",
+                building.getColony().getID(), formatBlockPos(currentRoofInspectionTarget), formatCurrentField()));
             return HorticulturistState.VALIDATE_FIELD_ROOF;
         }
 
         final RoofValidationResult roofValidation = validateGreenhouseRoof(level, currentField);
         if (roofValidation.failure() != RoofValidationFailure.NONE)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist roof validation failed for field {}: {}.",
+                building.getColony().getID(), formatCurrentField(), formatRoofValidation(roofValidation)));
             handleRoofValidationFailure(level, roofValidation);
             resetCurrentField();
             return DECIDE;
@@ -668,6 +731,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         job.resetNoGlassCounter();
         final IAIState nextState = roofValidationSuccessState;
         roofValidationSuccessState = DECIDE;
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist roof validation passed for field {}; next state {}.",
+            building.getColony().getID(), formatCurrentField(), nextState));
         return nextState == null ? DECIDE : nextState;
     }
 
@@ -693,9 +758,21 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 module.revertFieldToNaturalBiome(fieldPosition);
                 trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
                 building.markDirty();
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after missed maintenance since day {}.",
+                    building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay));
             }
 
             return;
+        }
+
+        if (roofValidationSuccessState == HorticulturistState.TRANSFORM_FIELD && currentField != null)
+        {
+            final GreenhouseBiomeModule module = safeBiomeModule();
+            final BlockPos fieldPosition = currentField.getPosition();
+            final long colonyDay = building.getColony().getDay();
+            module.recordFieldConversionBlocked(fieldPosition, colonyDay);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist blocked conversion field {} for colony day {} after roof validation failure.",
+                building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay));
         }
 
         triggerRoofInteraction(conversionRoofFailureMessage(roofValidation), roofFailureInteractionKey(roofValidation, false));
@@ -731,12 +808,16 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ServerLevel level = serverLevel();
         if (level == null || currentField == null || currentFieldIndex < 0)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transformField() missing context; level present? {}, field {}, index {}.",
+                building.getColony().getID(), level != null, formatCurrentField(), currentFieldIndex));
             return DECIDE;
         }
 
         final BlockPos fieldPosition = currentField.getPosition();
         if (!walkToSafePosWithSkillSpeed(fieldPosition))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist walking to transform field {}.",
+                building.getColony().getID(), formatCurrentField()));
             return HorticulturistState.TRANSFORM_FIELD;
         }
 
@@ -749,6 +830,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         if (!shortage.isBlank())
         {
             final IAIState restockState = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transform field {} shortage {}; restock state {}.",
+                building.getColony().getID(), formatCurrentField(), shortage, restockState));
             if (restockState != null)
             {
                 resetCurrentField();
@@ -786,8 +869,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             AdvancementUtils.TriggerAdvancementPlayersForColony(building.getColony(), AdvancementTriggers.FIELD_BIOME_MODIFIED.get()::trigger);
             module.markDirty();
             building.markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transformed field {} with {} changed biome cells and cost {}.",
+                building.getColony().getID(), formatCurrentField(), result.changedCells(), conversionCost));
         }
-        trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
+        final boolean seedCleared = module.clearInvalidSeedForActualBiome(level, currentField);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transform cleanup for field {} cleared invalid seed? {}.",
+            building.getColony().getID(), formatCurrentField(), seedCleared));
+        trackSeedCleared(seedCleared);
 
         resetCurrentField();
         return DECIDE;
@@ -803,12 +891,16 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ServerLevel level = serverLevel();
         if (level == null || currentField == null || currentFieldIndex < 0)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintainField() missing context; level present? {}, field {}, index {}.",
+                building.getColony().getID(), level != null, formatCurrentField(), currentFieldIndex));
             return DECIDE;
         }
 
         final BlockPos fieldPosition = currentField.getPosition();
         if (!walkToSafePosWithSkillSpeed(fieldPosition))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist walking to maintain field {}.",
+                building.getColony().getID(), formatCurrentField()));
             return HorticulturistState.MAINTAIN_FIELD;
         }
 
@@ -822,6 +914,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         if (!shortage.isBlank())
         {
             final IAIState restockState = restockShortageLedger(maintenanceCost, temperatureModule, humidityModule);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintenance field {} shortage {}; restock state {}.",
+                building.getColony().getID(), formatCurrentField(), shortage, restockState));
             if (restockState != null)
             {
                 resetCurrentField();
@@ -840,6 +934,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 module.revertFieldToNaturalBiome(fieldPosition);
                 trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
                 building.markDirty();
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after maintenance shortage since day {}.",
+                    building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay));
             }
 
             resetCurrentField();
@@ -854,6 +950,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         StatsUtil.trackStat(building, FIELDS_MAINTAINED_STAT, 1);
         module.markDirty();
         building.markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintained field {} for day {} with cost {}.",
+            building.getColony().getID(), formatCurrentField(), colonyDay, maintenanceCost));
 
         resetCurrentField();
         return DECIDE;
@@ -869,16 +967,23 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ServerLevel level = serverLevel();
         if (level == null || currentField == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist unsetFieldSeed() missing context; level present? {}, field {}.",
+                building.getColony().getID(), level != null, formatCurrentField()));
             return DECIDE;
         }
 
         final BlockPos fieldPosition = currentField.getPosition();
         if (!walkToSafePosWithSkillSpeed(fieldPosition))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist walking to clear seed for field {}.",
+                building.getColony().getID(), formatCurrentField()));
             return HorticulturistState.UNSET_FIELD_SEED;
         }
 
-        trackSeedCleared(safeBiomeModule().clearInvalidSeedForActualBiome(level, currentField));
+        final boolean seedCleared = safeBiomeModule().clearInvalidSeedForActualBiome(level, currentField);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist cleared invalid seed for field {}? {}.",
+            building.getColony().getID(), formatCurrentField(), seedCleared));
+        trackSeedCleared(seedCleared);
 
         resetCurrentField();
         return DECIDE;
@@ -891,22 +996,11 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     protected IAIState wanderInBuilding()
     {
-        if (currentWanderTarget == null)
-        {
-            currentWanderTarget = randomBuildingPosition();
-        }
-
-        if (currentWanderTarget == null)
-        {
-            return IDLE;
-        }
-
-        if (!walkToSafePos(currentWanderTarget))
+        if (!EntityNavigationUtils.walkToRandomPosAround(worker, building.getPosition(), 10, .8))
         {
             return HorticulturistState.WANDER_IN_BUILDING;
         }
 
-        currentWanderTarget = null;
         return DECIDE;
     }
 
@@ -915,11 +1009,15 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         if (currentLedgerTarget != null && InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), currentLedgerTarget::matches))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist picked up material and will ledger {}.",
+                building.getColony().getID(), formatLedgerTarget(currentLedgerTarget)));
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
 
         if (currentLedgerTarget != null && InventoryUtils.hasItemInProvider(building, currentLedgerTarget::matches))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist pickup ended but hut still has material for {}; ledgering.",
+                building.getColony().getID(), formatLedgerTarget(currentLedgerTarget)));
             return HorticulturistState.LEDGER_CLIMATE_MATERIAL;
         }
 
@@ -965,11 +1063,15 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ClimateLedgerTarget target = findShortageLedgerTarget(cost, temperatureModule, humidityModule);
         if (target == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist found no selected material that can restock cost {}.",
+                building.getColony().getID(), cost));
             return null;
         }
 
         currentLedgerTarget = target;
         job.setBiomeLedgerShortage(false);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist restocking shortage cost {} with target {}.",
+            building.getColony().getID(), cost, formatLedgerTarget(target)));
 
         final IAIState materialState = materialHandlingState(target);
         if (materialState != null)
@@ -1035,11 +1137,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         for (final ItemStorage item : module.getItems(list))
         {
-            final ItemStack stack = item.getItemStack();
-            final int requestCount = module.getLedgerRequestCount(list, stack, requiredBalance);
-            if (requestCount > 0)
+            final ClimateLedgerTarget target = climateLedgerTarget(module, list, item, requiredBalance);
+            if (target != null)
             {
-                return new ClimateLedgerTarget(module, list, stack.copy(), requestCount, Math.max(0, item.getAmount()), requiredBalance);
+                return target;
             }
         }
 
@@ -1066,14 +1167,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
                 for (final ItemStorage item : module.getItems(list))
                 {
-                    final ItemStack stack = item.getItemStack();
-                    final int requestCount = module.getLedgerRequestCount(list, stack, targetBalance);
-                    if (requestCount <= 0)
+                    final ClimateLedgerTarget target = climateLedgerTarget(module, list, item, targetBalance);
+                    if (target == null)
                     {
                         continue;
                     }
 
-                    final ClimateLedgerTarget target = new ClimateLedgerTarget(module, list, stack.copy(), requestCount, Math.max(0, item.getAmount()), targetBalance);
                     if (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches)
                         || InventoryUtils.hasItemInProvider(building, target::matches))
                     {
@@ -1098,8 +1197,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     private void requestClimateMaterial(final ClimateLedgerTarget target)
     {
-        if (hasClimateMaterialRequestOutstanding(target) || hasUnprocessedClimateMaterialInHut(target))
+        final boolean outstandingRequest = hasClimateMaterialRequestOutstanding(target);
+        final boolean materialInHut = hasUnprocessedClimateMaterialInHut(target);
+        if (outstandingRequest || materialInHut)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist suppressed climate material request for {}; outstanding request? {}, material in hut? {}.",
+                building.getColony().getID(), formatLedgerTarget(target), outstandingRequest, materialInHut));
             return;
         }
 
@@ -1109,6 +1212,81 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             target.requestCount(),
             1,
             target.protectedQuantity()));
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist created climate material request for {}.",
+            building.getColony().getID(), formatLedgerTarget(target)));
+    }
+
+    /**
+     * Build a climate ledger target and cap requests to the nearest warehouse surplus over the protected stack count.
+     *
+     * @param module climate item module
+     * @param list increase or decrease list
+     * @param item selected material and protected stack count
+     * @param targetBalance desired ledger balance
+     * @return requestable material target, or null when the item has no surplus available
+     */
+    private ClimateLedgerTarget climateLedgerTarget(
+        final GreenhouseClimateItemModule module,
+        final ClimateItemList list,
+        final ItemStorage item,
+        final int targetBalance)
+    {
+        final ItemStack stack = item.getItemStack();
+        int requestCount = module.getLedgerRequestCount(list, stack, targetBalance);
+        if (requestCount <= 0)
+        {
+            return null;
+        }
+
+        final int protectedStacks = Math.max(0, item.getAmount());
+        final int protectedQuantity = protectedItemCount(stack, protectedStacks);
+        final OptionalInt warehouseQuantity = closestWarehouseQuantity(stack);
+        if (warehouseQuantity.isPresent())
+        {
+            final int surplus = warehouseQuantity.getAsInt() - protectedQuantity;
+            if (surplus <= 0)
+            {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped climate material {} because closest warehouse has {} and protects {}.",
+                    building.getColony().getID(), stack, warehouseQuantity.getAsInt(), protectedQuantity));
+                return null;
+            }
+
+            requestCount = Math.min(requestCount, surplus);
+        }
+
+        return new ClimateLedgerTarget(module, list, stack.copy(), requestCount, protectedStacks, protectedQuantity, targetBalance);
+    }
+
+    /**
+     * Count matching material in the nearest warehouse, if the colony has one.
+     *
+     * @param stack selected material to count
+     * @return matching item count, or empty when no warehouse exists
+     */
+    private OptionalInt closestWarehouseQuantity(final ItemStack stack)
+    {
+        final IWareHouse warehouse = building.getColony().getServerBuildingManager().getClosestWarehouseInColony(building.getPosition());
+        if (warehouse == null)
+        {
+            return OptionalInt.empty();
+        }
+
+        return OptionalInt.of(InventoryUtils.getCountFromBuilding(
+            warehouse,
+            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true)));
+    }
+
+    /**
+     * Convert the UI's protected stack count to the request system's item count.
+     *
+     * @param stack selected material stack
+     * @param protectedStacks number of stacks to protect
+     * @return protected item count
+     */
+    private static int protectedItemCount(final ItemStack stack, final int protectedStacks)
+    {
+        final long protectedItems = (long) Math.max(0, protectedStacks) * (long) stack.getMaxStackSize();
+        return protectedItems > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) protectedItems;
     }
 
     /**
@@ -1716,10 +1894,11 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param roofState block state to inspect
      * @return true when the block is substantial enough to prevent an open-sky hole
      */
+    @SuppressWarnings("deprecation") // Vanilla still uses blocksMotion() for rain; no great alternative for this use case.
     private static boolean isRoofLikeBlock(final @Nonnull ServerLevel level, final @Nonnull BlockPos roofPos, final @Nonnull BlockState roofState)
     {
         return !roofState.isAir()
-            && (roofState.isCollisionShapeFullBlock(level, roofPos) || roofState.isFaceSturdy(level, roofPos, Direction.DOWN));
+            && (roofState.blocksMotion() || roofState.isCollisionShapeFullBlock(level, roofPos) || roofState.isFaceSturdy(level, roofPos, Direction.DOWN));
     }
 
     /**
@@ -1890,7 +2069,47 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     private static String formatBlockPos(final BlockPos pos)
     {
+        if (pos == null)
+        {
+            return "unknown";
+        }
+
         return pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
+    }
+
+    private String formatCurrentField()
+    {
+        return currentField == null ? "none" : formatField(currentFieldIndex, currentField.getPosition());
+    }
+
+    private static String formatField(final int fieldIndex, final BlockPos fieldPosition)
+    {
+        return "#" + fieldIndex + " at " + formatBlockPos(fieldPosition);
+    }
+
+    private static String formatLedgerTarget(final ClimateLedgerTarget target)
+    {
+        if (target == null)
+        {
+            return "none";
+        }
+
+        return target.requestDescription()
+            + " item=" + target.stack()
+            + " requestCount=" + target.requestCount()
+            + " protectedStacks=" + target.protectedStacks()
+            + " protectedQuantity=" + target.protectedQuantity()
+            + " targetBalance=" + target.targetBalance();
+    }
+
+    private static String formatRoofValidation(final RoofValidationResult roofValidation)
+    {
+        return "failure=" + roofValidation.failure()
+            + ", hole=" + formatBlockPos(roofValidation.holePosition())
+            + ", tagged=" + roofValidation.taggedColumns()
+            + ", covered=" + roofValidation.coveredColumns()
+            + ", total=" + roofValidation.totalColumns()
+            + ", required=" + roofValidation.requiredPercentage();
     }
 
     /**
@@ -1939,44 +2158,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         currentFieldRange = 0;
         currentRoofInspectionTarget = null;
         roofValidationSuccessState = DECIDE;
-    }
-
-    /**
-     * Pick a random position inside the greenhouse building bounds for idle wandering.
-     *
-     * @return a random in-building position, or the building position when no random position can be selected
-     */
-    private BlockPos randomBuildingPosition()
-    {
-        final Tuple<BlockPos, BlockPos> corners = building.getCorners();
-        if (corners == null || corners.getA() == null || corners.getB() == null)
-        {
-            return building.getPosition();
-        }
-
-        final BlockPos first = corners.getA();
-        final BlockPos second = corners.getB();
-        final int minX = Math.min(first.getX(), second.getX());
-        final int minY = Math.min(first.getY(), second.getY());
-        final int minZ = Math.min(first.getZ(), second.getZ());
-        final int maxX = Math.max(first.getX(), second.getX());
-        final int maxY = Math.max(first.getY(), second.getY());
-        final int maxZ = Math.max(first.getZ(), second.getZ());
-
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            final BlockPos target = new BlockPos(
-                minX + worker.getRandom().nextInt(maxX - minX + 1),
-                minY + worker.getRandom().nextInt(maxY - minY + 1),
-                minZ + worker.getRandom().nextInt(maxZ - minZ + 1));
-
-            if (building.isInBuilding(target))
-            {
-                return target;
-            }
-        }
-
-        return building.getPosition();
     }
 
     /**
@@ -2048,6 +2229,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         ClimateItemList list,
         ItemStack stack,
         int requestCount,
+        int protectedStacks,
         int protectedQuantity,
         int targetBalance)
     {
@@ -2104,6 +2286,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     protected @NotNull IAIState waitForRequests() 
     {
         IAIState state = super.waitForRequests();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist waitForRequests() state {}, open sync request? {}, completed pickup requests {}, deliverAcceptanceCounter {}.",
+            building.getColony().getID(),
+            state,
+            building.hasOpenSyncRequest(worker.getCitizenData()),
+            building.getCompletedRequestsOfCitizenOrBuilding(worker.getCitizenData()).size(),
+            deliverAcceptanceCounter));
 
         if (state != AIWorkerState.NEEDS_ITEM) 
         {
@@ -2121,6 +2309,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         if (clearedSomething)
         {
             deliverAcceptanceCounter = 0;
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist cleared stuck requests while waiting for items.", building.getColony().getID()));
         }
 
         // If we didn't clear anything, staying in NEEDS_ITEM is more honest than DECIDE.
@@ -2148,6 +2337,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             IToken<?> id = request.getId();
             if (!request.canBeDelivered() || citizen.isRequestAsync(id) || tryCounter > HARD_DELIVERY_ACCEPTANCE_COUNTER)
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist accepting stuck request {} after {} tries. deliverable? {}, async? {}.",
+                    building.getColony().getID(), id, tryCounter, request.canBeDelivered(), citizen.isRequestAsync(id)));
                 building.markRequestAsAccepted(citizen, id);
                 cleared = true;
             }

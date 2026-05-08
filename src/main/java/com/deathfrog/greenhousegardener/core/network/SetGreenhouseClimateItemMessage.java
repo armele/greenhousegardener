@@ -28,7 +28,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * @param listType increase or decrease list id
  * @param action add or remove action id
  * @param itemStack item stack being added or removed
- * @param protectedQuantity amount the worker should leave in storage
+ * @param protectedQuantity stack count the worker should leave in storage
  */
 public record SetGreenhouseClimateItemMessage(BlockPos buildingPos, int moduleType, int listType, int action, ItemStack itemStack, int protectedQuantity)
     implements IServerboundPayload

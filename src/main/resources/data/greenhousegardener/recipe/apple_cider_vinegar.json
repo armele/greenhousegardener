@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:apple"
+    },
+    {
+      "item": "minecraft:sugar"
+    },
+    {
+      "item": "minecolonies:large_water_bottle"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:apple_cider_vinegar"
+  }
+}

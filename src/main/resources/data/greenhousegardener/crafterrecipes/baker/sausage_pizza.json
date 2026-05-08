@@ -1,0 +1,30 @@
+{
+  "type": "recipe",
+  "crafter": "baker_crafting",
+  "inputs": [
+    {
+      "count": 3,
+      "id": "minecolonies:durum"
+    },
+    {
+      "count": 2,
+      "id": "minecolonies:tomato"
+    },
+    {
+      "id": "minecolonies:garlic"
+    },
+    {
+      "id": "minecolonies:cheddar_cheese"
+    },
+    {
+      "count": 2,
+      "id": "greenhousegardener:sausage"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:sausage_pizza"
+  },
+  "show-tooltip": true
+}

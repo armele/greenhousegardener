@@ -62,6 +62,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_LAST_CONVERTED_DAYS = "lastConvertedDays";
     private static final String TAG_LAST_FIELD_VISIT_DAYS = "lastFieldVisitDays";
     private static final String TAG_LAST_MAINTENANCE_VISIT_DAYS = "lastMaintenanceVisitDays";
+    private static final String TAG_LAST_CONVERSION_BLOCKED_DAYS = "lastConversionBlockedDays";
     private static final String TAG_FIRST_MISSED_MAINTENANCE_DAYS = "firstMissedMaintenanceDays";
     private static final String TAG_DAY = "day";
     private static final String TAG_NATURAL_BIOMES = "naturalBiomes";
@@ -74,6 +75,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private final Map<BlockPos, Long> lastConvertedDays = new HashMap<>();
     private final Map<BlockPos, Long> lastFieldVisitDays = new HashMap<>();
     private final Map<BlockPos, Long> lastMaintenanceVisitDays = new HashMap<>();
+    private final Map<BlockPos, Long> lastConversionBlockedDays = new HashMap<>();
     private final Map<BlockPos, Long> firstMissedMaintenanceDays = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
@@ -125,6 +127,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceVisitDays.clear();
         readDayMap(compound.getList(TAG_LAST_MAINTENANCE_VISIT_DAYS, Tag.TAG_COMPOUND), lastMaintenanceVisitDays);
 
+        lastConversionBlockedDays.clear();
+        readDayMap(compound.getList(TAG_LAST_CONVERSION_BLOCKED_DAYS, Tag.TAG_COMPOUND), lastConversionBlockedDays);
+
         firstMissedMaintenanceDays.clear();
         readDayMap(compound.getList(TAG_FIRST_MISSED_MAINTENANCE_DAYS, Tag.TAG_COMPOUND), firstMissedMaintenanceDays);
     }
@@ -166,6 +171,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         compound.put(TAG_LAST_CONVERTED_DAYS, writeDayMap(lastConvertedDays));
         compound.put(TAG_LAST_FIELD_VISIT_DAYS, writeDayMap(lastFieldVisitDays));
         compound.put(TAG_LAST_MAINTENANCE_VISIT_DAYS, writeDayMap(lastMaintenanceVisitDays));
+        compound.put(TAG_LAST_CONVERSION_BLOCKED_DAYS, writeDayMap(lastConversionBlockedDays));
         compound.put(TAG_FIRST_MISSED_MAINTENANCE_DAYS, writeDayMap(firstMissedMaintenanceDays));
     }
 
@@ -486,6 +492,35 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
+     * Record that conversion for a field could not proceed on a colony day.
+     *
+     * @param fieldPosition position of the field whose conversion is blocked
+     * @param colonyDay current colony day
+     */
+    public void recordFieldConversionBlocked(final BlockPos fieldPosition, final long colonyDay)
+    {
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        lastConversionBlockedDays.put(fieldPosition.immutable(), colonyDay);
+        markDirty();
+    }
+
+    /**
+     * Check whether conversion for a field already failed validation on a colony day.
+     *
+     * @param fieldPosition position of the field to inspect
+     * @param colonyDay current colony day
+     * @return true when conversion should be skipped until a later colony day
+     */
+    public boolean wasFieldConversionBlockedOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastConversionBlockedDays.get(fieldPosition), colonyDay);
+    }
+
+    /**
      * Record a successful maintenance visit.
      *
      * @param fieldPosition position of the farm field anchor
@@ -626,6 +661,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastConvertedDays.clear();
         lastFieldVisitDays.clear();
         lastMaintenanceVisitDays.clear();
+        lastConversionBlockedDays.clear();
         firstMissedMaintenanceDays.clear();
         markDirty();
     }
@@ -837,6 +873,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastConvertedDays.remove(fieldPosition);
         lastFieldVisitDays.remove(fieldPosition);
         lastMaintenanceVisitDays.remove(fieldPosition);
+        lastConversionBlockedDays.remove(fieldPosition);
         firstMissedMaintenanceDays.remove(fieldPosition);
         markDirty();
         return true;

@@ -1,0 +1,30 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "minecraft:beef"
+    },
+    {
+      "id": "minecraft:carrot"
+    },
+    {
+      "id": "minecolonies:tomato"
+    },
+    {
+      "id": "minecolonies:onion"
+    },
+    {
+      "id": "minecolonies:garlic"
+    },
+    {
+      "id": "minecraft:potato"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:cottage_pie"
+  },
+  "show-tooltip": true
+}

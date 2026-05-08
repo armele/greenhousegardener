@@ -87,6 +87,7 @@ public class GreenhouseGardenerMod {
         {
             event.accept(ModItems.cucumber);
             event.accept(ModItems.spinach);
+            event.accept(ModItems.broccoli);
             event.accept(ModItems.appleCiderVinegar);
             event.accept(ModItems.aussieSpread);
             event.accept(ModItems.aussieToast);
@@ -95,24 +96,39 @@ public class GreenhouseGardenerMod {
             event.accept(ModItems.barbecuePlate);
             event.accept(ModItems.biscuits);
             event.accept(ModItems.biscuitsAndGravy);
+            event.accept(ModItems.breadcrumbs);
+            event.accept(ModItems.brekkiePlate);
+            event.accept(ModItems.broccoliCheeseCasserole);
+            event.accept(ModItems.cacciatore);
             event.accept(ModItems.chickenAndWaffles);
+            event.accept(ModItems.chickpeaCurry);
             event.accept(ModItems.clubSandwich);
             event.accept(ModItems.clubSandwichPlate);
             event.accept(ModItems.coleslaw);
             event.accept(ModItems.cornOil);
+            event.accept(ModItems.cottagePie);
             event.accept(ModItems.doner);
+            event.accept(ModItems.eggplantParmagiana);
             event.accept(ModItems.friedChicken);
+            event.accept(ModItems.gamekeepersPie);
             event.accept(ModItems.garlicCheeseGrits);
+            event.accept(ModItems.generalTsosChicken);
             event.accept(ModItems.mayo);
+            event.accept(ModItems.mashedPotato);
+            event.accept(ModItems.mintyPeas);
+            event.accept(ModItems.mixedRice);
+            event.accept(ModItems.pastie);
+            event.accept(ModItems.pastry);
             event.accept(ModItems.pickles);
             event.accept(ModItems.popcorn);
             event.accept(ModItems.potatoChips);
             event.accept(ModItems.rouladen);
+            event.accept(ModItems.sabzi);
             event.accept(ModItems.sausage);
             event.accept(ModItems.sausagePizza);
             event.accept(ModItems.sourdoughBread);
             event.accept(ModItems.sourdoughStarter);
-            event.accept(ModItems.spanikopita);
+            event.accept(ModItems.spanakopita);
             event.accept(ModItems.spinachSalad);
             event.accept(ModItems.waffles);
         }

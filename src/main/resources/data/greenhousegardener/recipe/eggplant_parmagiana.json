@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecolonies:eggplant"
+    },
+    {
+      "item": "minecolonies:tomato"
+    },
+    {
+      "item": "minecolonies:cheddar_cheese"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:eggplant_parmagiana"
+  }
+}

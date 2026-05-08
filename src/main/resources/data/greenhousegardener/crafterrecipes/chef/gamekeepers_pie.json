@@ -1,0 +1,30 @@
+{
+  "type": "recipe",
+  "crafter": "chef_crafting",
+  "inputs": [
+    {
+      "id": "minecraft:rabbit"
+    },
+    {
+      "id": "minecolonies:onion"
+    },
+    {
+      "id": "minecolonies:garlic"
+    },
+    {
+      "id": "minecraft:carrot"
+    },
+    {
+      "id": "minecraft:potato"
+    },
+    {
+      "id": "greenhousegardener:pastry"
+    }
+  ],
+  "intermediate": "minecraft:air",
+  "min-building-level": 3,
+  "result": {
+    "id": "greenhousegardener:gamekeepers_pie"
+  },
+  "show-tooltip": true
+}

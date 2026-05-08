@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:porkchop"
+    },
+    {
+      "item": "minecolonies:onion"
+    },
+    {
+      "item": "minecolonies:nether_pepper"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:sausage"
+  }
+}

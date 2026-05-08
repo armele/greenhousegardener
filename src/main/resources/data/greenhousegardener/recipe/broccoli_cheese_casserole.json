@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:broccoli"
+    },
+    {
+      "item": "minecolonies:cheddar_cheese"
+    },
+    {
+      "item": "greenhousegardener:breadcrumbs"
+    },
+    {
+      "item": "minecolonies:large_milk_bottle"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:broccoli_cheese_casserole"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "type": "recipe-template",
+  "tag": "greenhousegardener:meats",
+  "recipe": {
+    "crafter": "chef_crafting",
+    "inputs": [
+      {
+        "id": "[NS]:[PATH]"
+      },
+      {
+        "id": "minecolonies:tomato"
+      },
+      {
+        "id": "minecraft:brown_mushroom"
+      },
+      {
+        "id": "minecolonies:bell_pepper"
+      },
+      {
+        "id": "minecraft:carrot"
+      },
+      {
+        "id": "minecolonies:onion"
+      },
+      {
+        "id": "minecolonies:garlic"
+      }
+    ],
+    "intermediate": "minecraft:air",
+    "min-building-level": 3,
+    "result": {
+      "id": "greenhousegardener:cacciatore"
+    },
+    "show-tooltip": false
+  }
+}

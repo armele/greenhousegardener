@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:porkchop"
+    },
+    {
+      "item": "greenhousegardener:sourdough_bread"
+    },
+    {
+      "item": "minecolonies:butter"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:bacon_butty"
+  }
+}

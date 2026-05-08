@@ -11,7 +11,7 @@
 		"climate_wool": "block/white_wool",
 		"graywool": "block/gray_wool",
 		"bars": "block/iron_bars",
-		"core": "block/oxidized_copper"
+		"core": "block/redstone_block"
 	},
 	"elements": [
 		{

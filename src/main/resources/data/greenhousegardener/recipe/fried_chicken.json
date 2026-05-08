@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:chicken"
+    },
+    {
+      "item": "minecolonies:durum"
+    },
+    {
+      "item": "minecraft:egg"
+    },
+    {
+      "item": "greenhousegardener:corn_oil"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:fried_chicken"
+  }
+}

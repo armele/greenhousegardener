@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecolonies:cornmeal"
+    },
+    {
+      "item": "minecolonies:cheddar_cheese"
+    },
+    {
+      "item": "minecolonies:garlic"
+    },
+    {
+      "item": "minecolonies:butter"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:garlic_cheese_grits"
+  }
+}

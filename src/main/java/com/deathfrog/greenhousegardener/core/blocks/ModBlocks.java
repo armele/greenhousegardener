@@ -18,6 +18,7 @@ public final class ModBlocks
 
   public static final DeferredBlock<BlockCucumber> cucumber = BLOCKS.register(BlockCucumber.BLOCK_NAME, BlockCucumber::new);
   public static final DeferredBlock<BlockSpinach> spinach = BLOCKS.register(BlockSpinach.BLOCK_NAME, BlockSpinach::new);
+  public static final DeferredBlock<BlockBroccoli> broccoli = BLOCKS.register(BlockBroccoli.BLOCK_NAME, BlockBroccoli::new);
 
   private ModBlocks()
   {
