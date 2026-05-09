@@ -19,8 +19,9 @@ import com.deathfrog.greenhousegardener.core.ModTags;
 import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub;
 import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub.VisualClimate;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
-import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
-import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
 import com.minecolonies.api.colony.buildingextensions.IBuildingExtension;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
@@ -31,6 +32,7 @@ import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.items.ItemCrop;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.QuartPos;
@@ -376,6 +378,23 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     public boolean isFieldModifiedFromNatural(final ServerLevel level, final BlockPos fieldPosition)
     {
         return isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition));
+    }
+
+    /**
+     * Get the field's natural biome climate, preferring persisted captures when available.
+     *
+     * @param level server level containing biome data
+     * @param fieldPosition position of the farm field anchor
+     * @return natural temperature and humidity axes
+     */
+    public GreenhouseClimate getNaturalClimate(final ServerLevel level, final BlockPos fieldPosition)
+    {
+        if (fieldPosition == null)
+        {
+            return climate(FieldBiomeAssignment.DEFAULT);
+        }
+
+        return naturalClimate(level, fieldPosition);
     }
 
     /**
@@ -962,7 +981,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
-        GreenhouseBiomeOverlayService.restoreOverlay(serverLevel, fieldPosition, horizontalRange(field), naturalBiomes, appliedBiomes);
+        GreenhouseBiomeOverlayService.restoreOverlay(serverLevel, biomeFootprint(field), naturalBiomes, appliedBiomes);
     }
 
     /**
@@ -1183,16 +1202,19 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
-     * Calculate the largest horizontal field radius in any cardinal direction.
+     * Build the exact field footprint used by biome overlay operations.
      *
-     * @param field the field whose radius values should be inspected
-     * @return the maximum north, south, east, or west field radius
+     * @param field farm field to describe
+     * @return directional biome footprint
      */
-    private static int horizontalRange(final FarmField field)
+    private static FieldBiomeFootprint biomeFootprint(final FarmField field)
     {
-        return Math.max(
-            Math.max(field.getRadius(net.minecraft.core.Direction.NORTH), field.getRadius(net.minecraft.core.Direction.SOUTH)),
-            Math.max(field.getRadius(net.minecraft.core.Direction.EAST), field.getRadius(net.minecraft.core.Direction.WEST)));
+        return FieldBiomeFootprint.directional(
+            field.getPosition(),
+            field.getRadius(Direction.WEST),
+            field.getRadius(Direction.EAST),
+            field.getRadius(Direction.NORTH),
+            field.getRadius(Direction.SOUTH));
     }
 
     private static BlockPos quantizedBlockPos(final BlockPos pos)

@@ -2,7 +2,7 @@
   "replace": false,
   "values": [
     "minecraft:sand",
-    "minecraft:cactus",
-    "#minecraft:wool"
+    "#minecraft:wool",
+    "minecraft:dead_bush"
   ]
 }

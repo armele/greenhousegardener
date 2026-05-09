@@ -1,7 +1,7 @@
 {
   "replace": false,
   "values": [
-    "minecraft:dead_bush",
-    "minecraft:red_sand"
+    "minecraft:red_sand",
+    "minecraft:nether_wart"
   ]
 }

@@ -36,9 +36,11 @@ import com.deathfrog.greenhousegardener.core.colony.buildings.modules.Greenhouse
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseTemperatureModule;
 import com.deathfrog.greenhousegardener.core.util.DomumOrnamentumRoofHelper;
 import com.deathfrog.greenhousegardener.core.util.TraceUtils;
-import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService;
-import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.GreenhouseClimate;
-import com.deathfrog.greenhousegardener.core.world.GreenhouseBiomeOverlayService.OverlayResult;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayCheckResult;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayResult;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.buildings.workerbuildings.IWareHouse;
 import com.minecolonies.api.colony.interactionhandling.ChatPriority;
@@ -81,6 +83,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 {
     private static final String FIELDS_TRANSFORMED_STAT = "fields_transformed";
     private static final String FIELDS_MAINTAINED_STAT = "fields_maintained";
+    private static final String TEMP_INCREASE_CCU_STAT = "temp_increase_ccu";
+    private static final String TEMP_DECREASE_CCU_STAT = "temp_decrease_ccu";
+    private static final String HUMID_INCREASE_CCU_STAT = "humid_increase_ccu";
+    private static final String HUMID_DECREASE_CCU_STAT = "humid_decrease_ccu";
     private static final String FIELD_TRANSFORMED_MESSAGE = "entity.horticulturist.field_transformed";
     private static final String CLIMATE_MATERIAL_REQUEST = "Greenhouse Climate Material";
     private static final double BASE_BIOME_TRANSFORM_XP = 1.0D;
@@ -441,7 +447,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 continue;
             }
 
-            if (GreenhouseBiomeOverlayService.needsOverlay(level, fieldPosition, fieldRange, climate))
+            if (GreenhouseBiomeOverlayService.needsOverlay(level, biomeFootprint(field), climate))
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
                 final ConversionPreflightResult preflight = conversionPreflight(level, module, field, assignment);
@@ -567,17 +573,31 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final FieldBiomeAssignment assignment)
     {
         final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
-        if (ledgerShortage(conversionCost, safeTemperatureModule(), safeHumidityModule()).isBlank())
+        final GreenhouseTemperatureModule temperatureModule = safeTemperatureModule();
+        final GreenhouseHumidityModule humidityModule = safeHumidityModule();
+        final String shortage = ledgerShortage(conversionCost, temperatureModule, humidityModule);
+        if (shortage.isBlank())
         {
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight ready for field {} with cost {}.",
                 building.getColony().getID(), formatBlockPos(field.getPosition()), conversionCost));
             return ConversionPreflightResult.ready();
         }
 
-        final IAIState restockState = restockShortageLedger(conversionCost, safeTemperatureModule(), safeHumidityModule());
+        final IAIState restockState = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight shortage for field {}; restock state {}.",
             building.getColony().getID(), formatBlockPos(field.getPosition()), restockState));
-        return restockState == DECIDE ? ConversionPreflightResult.skippedField() : ConversionPreflightResult.handle(restockState);
+        if (restockState == DECIDE)
+        {
+            return ConversionPreflightResult.skippedField();
+        }
+
+        if (restockState != null)
+        {
+            return ConversionPreflightResult.handle(restockState);
+        }
+
+        reportConversionLedgerShortage(module, field.getPosition(), shortage, false);
+        return ConversionPreflightResult.skippedField();
     }
 
     /**
@@ -838,12 +858,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 return restockState;
             }
 
-            job.setBiomeLedgerShortage(true);
-            module.recordFieldVisited(fieldPosition, building.getColony().getDay());
-            worker.getCitizenData().triggerInteraction(new StandardInteraction(
-                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE, formatBlockPos(fieldPosition), shortage),
-                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE),
-                ChatPriority.BLOCKING));
+            reportConversionLedgerShortage(module, fieldPosition, shortage, true);
             resetCurrentField();
             return DECIDE;
         }
@@ -852,8 +867,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         final OverlayResult result = GreenhouseBiomeOverlayService.applyOverlay(
             level,
-            fieldPosition,
-            currentFieldRange,
+            biomeFootprint(currentField),
             climate(assignment),
             module.getNaturalBiomes(),
             module.getAppliedBiomes());
@@ -879,6 +893,36 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         resetCurrentField();
         return DECIDE;
+    }
+
+    /**
+     * Mark a conversion as blocked by climate material shortage and report it to the player.
+     *
+     * @param module biome module holding field tracking state
+     * @param fieldPosition field whose conversion is blocked
+     * @param shortage player-facing shortage description
+     * @param recordVisit true when the worker physically reached the field before discovering the shortage
+     */
+    private void reportConversionLedgerShortage(
+        final GreenhouseBiomeModule module,
+        final BlockPos fieldPosition,
+        final String shortage,
+        final boolean recordVisit)
+    {
+        final long colonyDay = building.getColony().getDay();
+        job.setBiomeLedgerShortage(true);
+        module.recordFieldConversionBlocked(fieldPosition, colonyDay);
+        if (recordVisit)
+        {
+            module.recordFieldVisited(fieldPosition, colonyDay);
+        }
+
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist triggering conversion ledger shortage interaction for field {} with shortage {}.",
+            building.getColony().getID(), formatBlockPos(fieldPosition), shortage));
+        worker.getCitizenData().triggerInteraction(new StandardInteraction(
+            Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE, formatBlockPos(fieldPosition), shortage),
+            Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_LEDGER_SHORTAGE),
+            ChatPriority.BLOCKING));
     }
 
     /**
@@ -924,6 +968,8 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
             final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
             job.setBiomeLedgerShortage(true);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist triggering maintenance ledger shortage interaction for field {} with shortage {}.",
+                building.getColony().getID(), formatBlockPos(fieldPosition), shortage));
             worker.getCitizenData().triggerInteraction(new StandardInteraction(
                 Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE, formatBlockPos(fieldPosition), shortage),
                 Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
@@ -942,6 +988,33 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return DECIDE;
         }
 
+        final GreenhouseClimate climate = climate(assignment);
+        final FieldBiomeFootprint footprint = biomeFootprint(currentField);
+        final OverlayCheckResult overlayCheck = GreenhouseBiomeOverlayService.checkOverlay(level, footprint, climate);
+        if (overlayCheck.hadUnloadedChunks())
+        {
+            recordMissedMaintenance(level, module, fieldPosition, colonyDay, "unloaded biome chunks");
+            resetCurrentField();
+            return DECIDE;
+        }
+
+        OverlayResult repairResult = OverlayResult.EMPTY;
+        if (overlayCheck.needsOverlay())
+        {
+            repairResult = GreenhouseBiomeOverlayService.applyOverlay(
+                level,
+                footprint,
+                climate,
+                module.getNaturalBiomes(),
+                module.getAppliedBiomes());
+            if (repairResult.hadUnloadedChunks())
+            {
+                recordMissedMaintenance(level, module, fieldPosition, colonyDay, "unloaded biome chunks during repair");
+                resetCurrentField();
+                return DECIDE;
+            }
+        }
+
         debitConversionLedgers(maintenanceCost, temperatureModule, humidityModule);
         module.recordFieldMaintained(fieldPosition, colonyDay);
         job.setBiomeLedgerShortage(false);
@@ -950,11 +1023,44 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         StatsUtil.trackStat(building, FIELDS_MAINTAINED_STAT, 1);
         module.markDirty();
         building.markDirty();
-        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintained field {} for day {} with cost {}.",
-            building.getColony().getID(), formatCurrentField(), colonyDay, maintenanceCost));
+        final OverlayResult finalRepairResult = repairResult;
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintained field {} for day {} with cost {} and repaired {} biome cells.",
+            building.getColony().getID(), formatCurrentField(), colonyDay, maintenanceCost, finalRepairResult.changedCells()));
 
         resetCurrentField();
         return DECIDE;
+    }
+
+    /**
+     * Record a missed maintenance visit that is not caused by material shortage.
+     *
+     * @param level server level containing the field
+     * @param module biome module owning the field
+     * @param fieldPosition field anchor position
+     * @param colonyDay current colony day
+     * @param reason trace-friendly missed maintenance reason
+     */
+    private void recordMissedMaintenance(
+        final ServerLevel level,
+        final GreenhouseBiomeModule module,
+        final BlockPos fieldPosition,
+        final long colonyDay,
+        final String reason)
+    {
+        final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+        job.setBiomeLedgerShortage(false);
+        if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
+        {
+            module.revertFieldToNaturalBiome(fieldPosition);
+            trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
+            building.markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after missed maintenance since day {} due to {}.",
+                building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay, reason));
+            return;
+        }
+
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist missed maintenance for field {} on day {} due to {}.",
+            building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay, reason));
     }
 
     /**
@@ -1217,7 +1323,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
-     * Build a climate ledger target and cap requests to the nearest warehouse surplus over the protected stack count.
+     * Build a climate ledger target and cap requests to hut stock plus nearest warehouse surplus over the protected stack count.
      *
      * @param module climate item module
      * @param list increase or decrease list
@@ -1240,40 +1346,49 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         final int protectedStacks = Math.max(0, item.getAmount());
         final int protectedQuantity = protectedItemCount(stack, protectedStacks);
-        final OptionalInt warehouseQuantity = closestWarehouseQuantity(stack);
-        if (warehouseQuantity.isPresent())
+        final OptionalInt usableQuantity = usableClimateMaterialQuantity(stack, protectedQuantity);
+        if (usableQuantity.isPresent())
         {
-            final int surplus = warehouseQuantity.getAsInt() - protectedQuantity;
-            if (surplus <= 0)
+            if (usableQuantity.getAsInt() <= 0)
             {
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped climate material {} because closest warehouse has {} and protects {}.",
-                    building.getColony().getID(), stack, warehouseQuantity.getAsInt(), protectedQuantity));
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped climate material {} because usable storage is 0 after protecting {} warehouse items.",
+                    building.getColony().getID(), stack, protectedQuantity));
                 return null;
             }
 
-            requestCount = Math.min(requestCount, surplus);
+            requestCount = Math.min(requestCount, usableQuantity.getAsInt());
         }
 
         return new ClimateLedgerTarget(module, list, stack.copy(), requestCount, protectedStacks, protectedQuantity, targetBalance);
     }
 
     /**
-     * Count matching material in the nearest warehouse, if the colony has one.
+     * Count matching material that may be consumed now.
+     *
+     * Greenhouse hut inventory is considered already delivered and fully usable. The protected count only applies
+     * to the nearest warehouse inventory because that is where new deliveries are sourced from.
      *
      * @param stack selected material to count
-     * @return matching item count, or empty when no warehouse exists
+     * @param protectedQuantity number of matching warehouse items to leave untouched
+     * @return matching item count, or empty when no storage source should cap requests
      */
-    private OptionalInt closestWarehouseQuantity(final ItemStack stack)
+    private OptionalInt usableClimateMaterialQuantity(final ItemStack stack, final int protectedQuantity)
     {
+        final int hutQuantity = InventoryUtils.getCountFromBuilding(
+            building,
+            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true));
+
         final IWareHouse warehouse = building.getColony().getServerBuildingManager().getClosestWarehouseInColony(building.getPosition());
         if (warehouse == null)
         {
-            return OptionalInt.empty();
+            return hutQuantity > 0 ? OptionalInt.of(hutQuantity) : OptionalInt.empty();
         }
 
-        return OptionalInt.of(InventoryUtils.getCountFromBuilding(
+        final int warehouseQuantity = InventoryUtils.getCountFromBuilding(
             warehouse,
-            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true)));
+            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true));
+        final long totalQuantity = (long) hutQuantity + (long) Math.max(0, warehouseQuantity - protectedQuantity);
+        return OptionalInt.of(totalQuantity > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalQuantity);
     }
 
     /**
@@ -1751,15 +1866,40 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param temperatureModule temperature ledger module
      * @param humidityModule humidity ledger module
      */
-    private static void debitConversionLedgers(
+    private void debitConversionLedgers(
         final BiomeConversionCost cost,
         final GreenhouseTemperatureModule temperatureModule,
         final GreenhouseHumidityModule humidityModule)
     {
-        temperatureModule.tryDebitLedger(ClimateItemList.INCREASE, cost.hot());
-        temperatureModule.tryDebitLedger(ClimateItemList.DECREASE, cost.cold());
-        humidityModule.tryDebitLedger(ClimateItemList.INCREASE, cost.humid());
-        humidityModule.tryDebitLedger(ClimateItemList.DECREASE, cost.dry());
+        debitLedger(temperatureModule, ClimateItemList.INCREASE, cost.hot(), TEMP_INCREASE_CCU_STAT);
+        debitLedger(temperatureModule, ClimateItemList.DECREASE, cost.cold(), TEMP_DECREASE_CCU_STAT);
+        debitLedger(humidityModule, ClimateItemList.INCREASE, cost.humid(), HUMID_INCREASE_CCU_STAT);
+        debitLedger(humidityModule, ClimateItemList.DECREASE, cost.dry(), HUMID_DECREASE_CCU_STAT);
+    }
+
+    /**
+     * Deduct climate control units from one ledger and track the spent amount in building stats.
+     *
+     * @param module climate item module to debit
+     * @param list increase or decrease ledger
+     * @param amount CCU amount to spend
+     * @param statKey building stat key for this ledger
+     */
+    private void debitLedger(
+        final GreenhouseClimateItemModule module,
+        final ClimateItemList list,
+        final int amount,
+        final String statKey)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (module.tryDebitLedger(list, amount))
+        {
+            StatsUtil.trackStat(building, statKey, amount);
+        }
     }
 
     private static BlockPos quantizedBlockPos(final BlockPos pos)
@@ -2171,6 +2311,22 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         return Math.max(
             Math.max(field.getRadius(Direction.NORTH), field.getRadius(Direction.SOUTH)),
             Math.max(field.getRadius(Direction.EAST), field.getRadius(Direction.WEST)));
+    }
+
+    /**
+     * Build the exact field footprint used by biome overlay operations.
+     *
+     * @param field farm field to describe
+     * @return directional biome footprint
+     */
+    private static FieldBiomeFootprint biomeFootprint(final FarmField field)
+    {
+        return FieldBiomeFootprint.directional(
+            field.getPosition(),
+            field.getRadius(Direction.WEST),
+            field.getRadius(Direction.EAST),
+            field.getRadius(Direction.NORTH),
+            field.getRadius(Direction.SOUTH));
     }
 
     /**

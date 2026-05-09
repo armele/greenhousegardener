@@ -1,4 +1,4 @@
-package com.deathfrog.greenhousegardener.core.world;
+package com.deathfrog.greenhousegardener.core.world.biomeservice;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,7 +31,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  */
 public final class GreenhouseBiomeOverlayService
 {
-    private static final int DEFAULT_VERTICAL_RANGE = 8;
+    public static final int DEFAULT_VERTICAL_RANGE = 8;
+    private static final int BIOME_LOOKUP_PADDING = 4;
     private static final ResourceLocation BIOME_COLD_DRY = ResourceLocation.withDefaultNamespace("snowy_slopes");
     private static final ResourceLocation BIOME_COLD_NORMAL = ResourceLocation.withDefaultNamespace("snowy_plains");
     private static final ResourceLocation BIOME_COLD_HUMID = ResourceLocation.withDefaultNamespace("old_growth_pine_taiga");
@@ -80,7 +81,6 @@ public final class GreenhouseBiomeOverlayService
      * @param appliedBiomes persisted biome cells last written by this service
      * @return a summary of the overlay work performed
      */
-    @SuppressWarnings("null")
     public static OverlayResult applyOverlay(
         final ServerLevel level,
         final BlockPos center,
@@ -90,7 +90,33 @@ public final class GreenhouseBiomeOverlayService
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        if (level == null || center == null || climate == null || naturalBiomes == null || appliedBiomes == null)
+        if (center == null)
+        {
+            return OverlayResult.EMPTY;
+        }
+
+        return applyOverlay(level, FieldBiomeFootprint.centered(center, horizontalRange, verticalRange), climate, naturalBiomes, appliedBiomes);
+    }
+
+    /**
+     * Apply a climate overlay across a field footprint expanded to cover vanilla's smoothed biome lookup.
+     *
+     * @param level the server level containing the target chunks
+     * @param footprint the exact field footprint before biome lookup padding
+     * @param climate the desired greenhouse climate
+     * @param naturalBiomes persisted biome cells captured before this service first changed them
+     * @param appliedBiomes persisted biome cells last written by this service
+     * @return a summary of the overlay work performed
+     */
+    @SuppressWarnings("null")
+    public static OverlayResult applyOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final GreenhouseClimate climate,
+        final Map<BlockPos, ResourceLocation> naturalBiomes,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
+        if (level == null || footprint == null || climate == null || naturalBiomes == null || appliedBiomes == null)
         {
             return OverlayResult.EMPTY;
         }
@@ -102,7 +128,7 @@ public final class GreenhouseBiomeOverlayService
         }
 
         final Holder.Reference<Biome> targetBiome = biomeHolder(level, targetBiomeId);
-        final BoundingBox targetRegion = quantizedBox(center, horizontalRange, verticalRange);
+        final BoundingBox targetRegion = footprint.paddedBiomeRegion();
         final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
         if (chunkSelection.chunks().isEmpty())
         {
@@ -174,13 +200,35 @@ public final class GreenhouseBiomeOverlayService
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        if (level == null || center == null || naturalBiomes == null || appliedBiomes == null)
+        if (center == null)
         {
             return OverlayResult.EMPTY;
         }
 
-        final BoundingBox targetRegion = quantizedBox(center, horizontalRange, verticalRange);
-        return restoreOverlay(level, targetRegion, naturalBiomes, appliedBiomes);
+        return restoreOverlay(level, FieldBiomeFootprint.centered(center, horizontalRange, verticalRange), naturalBiomes, appliedBiomes);
+    }
+
+    /**
+     * Restore natural biomes across a field footprint expanded to cover vanilla's smoothed biome lookup.
+     *
+     * @param level the server level containing the target chunks
+     * @param footprint the exact field footprint before biome lookup padding
+     * @param naturalBiomes persisted biome cells captured before this service first changed them
+     * @param appliedBiomes persisted biome cells last written by this service
+     * @return a summary of the restoration work performed
+     */
+    public static OverlayResult restoreOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final Map<BlockPos, ResourceLocation> naturalBiomes,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
+        if (level == null || footprint == null || naturalBiomes == null || appliedBiomes == null)
+        {
+            return OverlayResult.EMPTY;
+        }
+
+        return restoreOverlay(level, footprint.paddedBiomeRegion(), naturalBiomes, appliedBiomes);
     }
 
     /**
@@ -316,22 +364,59 @@ public final class GreenhouseBiomeOverlayService
         final int verticalRange,
         final GreenhouseClimate climate)
     {
-        if (level == null || center == null || climate == null)
+        if (center == null)
         {
             return false;
+        }
+
+        return needsOverlay(level, FieldBiomeFootprint.centered(center, horizontalRange, verticalRange), climate);
+    }
+
+    /**
+     * Check whether a field footprint already has the requested greenhouse biome.
+     *
+     * @param level the server level containing the field
+     * @param footprint the exact field footprint before biome lookup padding
+     * @param climate the desired greenhouse climate
+     * @return true when at least one loaded biome cell in the padded footprint differs from the target biome
+     */
+    public static boolean needsOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final GreenhouseClimate climate)
+    {
+        return checkOverlay(level, footprint, climate).needsOverlay();
+    }
+
+    /**
+     * Check whether a field footprint already has the requested greenhouse biome, including chunk availability.
+     *
+     * @param level the server level containing the field
+     * @param footprint the exact field footprint before biome lookup padding
+     * @param climate the desired greenhouse climate
+     * @return overlay inspection result
+     */
+    public static OverlayCheckResult checkOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final GreenhouseClimate climate)
+    {
+        if (level == null || footprint == null || climate == null)
+        {
+            return OverlayCheckResult.COMPLETE;
         }
 
         final ResourceLocation targetBiomeId = biomeFor(climate);
         if (targetBiomeId == null)
         {
-            return false;
+            return OverlayCheckResult.COMPLETE;
         }
 
-        final BoundingBox targetRegion = quantizedBox(center, horizontalRange, verticalRange);
+        final BoundingBox targetRegion = footprint.paddedBiomeRegion();
         final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
         if (chunkSelection.chunks().isEmpty())
         {
-            return false;
+            return new OverlayCheckResult(false, chunkSelection.hadUnloadedChunks());
         }
 
         for (final ChunkAccess chunk : chunkSelection.chunks())
@@ -356,14 +441,14 @@ public final class GreenhouseBiomeOverlayService
                         final Optional<ResourceLocation> currentBiomeId = holderId(chunk.getNoiseBiome(quartX, quartY, quartZ));
                         if (currentBiomeId.isEmpty() || !targetBiomeId.equals(currentBiomeId.get()))
                         {
-                            return true;
+                            return new OverlayCheckResult(true, chunkSelection.hadUnloadedChunks());
                         }
                     }
                 }
             }
         }
 
-        return false;
+        return new OverlayCheckResult(false, chunkSelection.hadUnloadedChunks());
     }
 
     @SuppressWarnings("null")
@@ -443,19 +528,34 @@ public final class GreenhouseBiomeOverlayService
         return new ChunkSelection(chunks, hadUnloadedChunks);
     }
 
-    @SuppressWarnings("null")
-    private static BoundingBox quantizedBox(final BlockPos center, final int horizontalRange, final int verticalRange)
-    {
-        final int xzRange = Math.max(0, horizontalRange);
-        final int yRange = Math.max(0, verticalRange);
-        return BoundingBox.fromCorners(
-            quantizedBlockPos(center.offset(-xzRange, -yRange, -xzRange)),
-            quantizedBlockPos(center.offset(xzRange, yRange, xzRange)));
-    }
-
     private static BlockPos quantizedBlockPos(final BlockPos pos)
     {
         return new BlockPos(quantize(pos.getX()), quantize(pos.getY()), quantize(pos.getZ()));
+    }
+
+    /**
+     * Quantize an exact field footprint into the biome-cell region that should be modified.
+     *
+     * @param exactRegion exact field blocks, without biome lookup padding
+     * @return padded and quantized biome-cell region
+     */
+    @SuppressWarnings("null")
+    public static BoundingBox paddedBiomeRegion(final BoundingBox exactRegion)
+    {
+        if (exactRegion == null)
+        {
+            return null;
+        }
+
+        return BoundingBox.fromCorners(
+            quantizedBlockPos(new BlockPos(
+                exactRegion.minX() - BIOME_LOOKUP_PADDING,
+                exactRegion.minY(),
+                exactRegion.minZ() - BIOME_LOOKUP_PADDING)),
+            quantizedBlockPos(new BlockPos(
+                exactRegion.maxX() + BIOME_LOOKUP_PADDING,
+                exactRegion.maxY(),
+                exactRegion.maxZ() + BIOME_LOOKUP_PADDING)));
     }
 
     private static BlockPos quantizedCell(final int quartX, final int quartY, final int quartZ)
@@ -484,39 +584,6 @@ public final class GreenhouseBiomeOverlayService
     private static void resendBiomes(final ServerLevel level, final @Nonnull List<ChunkAccess> chunks)
     {
         level.getChunkSource().chunkMap.resendBiomesForChunks(chunks);
-    }
-
-    /**
-     * Shared greenhouse climate axes used for field assignment, overlay biomes, and cost calculation.
-     *
-     * @param temperature requested or inferred temperature axis
-     * @param humidity requested or inferred humidity axis
-     */
-    public record GreenhouseClimate(TemperatureSetting temperature, HumiditySetting humidity)
-    {
-        /**
-         * Create climate settings from serialized module names.
-         *
-         * @param temperature serialized temperature name
-         * @param humidity serialized humidity name
-         * @return parsed climate settings, defaulting invalid values to temperate/normal
-         */
-        public static GreenhouseClimate bySerializedNames(final String temperature, final String humidity)
-        {
-            return new GreenhouseClimate(TemperatureSetting.bySerializedName(temperature), HumiditySetting.bySerializedName(humidity));
-        }
-    }
-
-    /**
-     * Summary of biome overlay or restoration work.
-     *
-     * @param changedCells number of quart biome cells changed
-     * @param touchedChunks number of loaded chunks touched
-     * @param hadUnloadedChunks true when at least one chunk in the target range was skipped because it was not loaded
-     */
-    public record OverlayResult(int changedCells, int touchedChunks, boolean hadUnloadedChunks)
-    {
-        public static final OverlayResult EMPTY = new OverlayResult(0, 0, false);
     }
 
     private record ChunkSelection(List<ChunkAccess> chunks, boolean hadUnloadedChunks)
