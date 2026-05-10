@@ -38,7 +38,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     private static final String TAG_PROTECTED_QUANTITY = "protectedQuantity";
     private static final String TAG_LEDGER_INCREASE = "ledgerIncrease";
     private static final String TAG_LEDGER_DECREASE = "ledgerDecrease";
-    public static final int DEFAULT_LEDGER_LIMIT = 500;
+    public static final int DEFAULT_LEDGER_TARGET = 500;
 
     private final Map<ClimateItemList, Set<ItemStorage>> items = new EnumMap<>(ClimateItemList.class);
     private final Map<ClimateItemList, Integer> ledgerBalances = new EnumMap<>(ClimateItemList.class);
@@ -73,12 +73,14 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public void addItem(final ClimateItemList list, final ItemStorage item)
     {
-        if (item.getItemStack().isEmpty() || !item.getItemStack().is(getAllowedTag(list)))
+        final ItemStorage normalizedItem = normalizedClimateItem(item);
+        if (normalizedItem.getItemStack().isEmpty() || !normalizedItem.getItemStack().is(getAllowedTag(list)))
         {
             return;
         }
 
-        items.get(list).add(item);
+        items.get(list).remove(normalizedItem);
+        items.get(list).add(normalizedItem);
         markDirty();
     }
 
@@ -90,7 +92,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public void removeItem(final ClimateItemList list, final ItemStorage item)
     {
-        items.get(list).remove(item);
+        items.get(list).remove(normalizedClimateItem(item));
         markDirty();
     }
 
@@ -122,14 +124,15 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     }
 
     /**
-     * Get the maximum balance this module tries to keep for a list.
+     * Get the amount of CCU we attempt to keep on hand for
+     * maintenance and conversion.
      *
      * @param list the target increase or decrease list
      * @return ledger limit
      */
-    public int getLedgerLimit(final ClimateItemList list)
+    public int getLedgerTargetBalance()
     {
-        return DEFAULT_LEDGER_LIMIT;
+        return DEFAULT_LEDGER_TARGET;
     }
 
     /**
@@ -140,7 +143,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public boolean isLedgerUnderLimit(final ClimateItemList list)
     {
-        return isLedgerUnderTarget(list, getLedgerLimit(list));
+        return isLedgerUnderTarget(list, getLedgerTargetBalance());
     }
 
     /**
@@ -164,7 +167,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int getLedgerRequestCount(final ClimateItemList list, final ItemStack stack)
     {
-        return getLedgerRequestCount(list, stack, getLedgerLimit(list));
+        return getLedgerRequestCount(list, stack, getLedgerTargetBalance());
     }
 
     /**
@@ -197,7 +200,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int ledgerStack(final ClimateItemList list, final ItemStack stack)
     {
-        return ledgerStack(list, stack, getLedgerLimit(list));
+        return ledgerStack(list, stack, getLedgerTargetBalance());
     }
 
     /**
@@ -363,7 +366,13 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
                 continue;
             }
 
-            target.add(new ItemStorage(ItemStack.parseOptional(provider, stackTag), itemTag.getInt(TAG_PROTECTED_QUANTITY)));
+            final ItemStack stack = parseSelectedStack(provider, stackTag);
+            if (stack.isEmpty())
+            {
+                continue;
+            }
+
+            target.add(new ItemStorage(stack, Math.max(0, itemTag.getInt(TAG_PROTECTED_QUANTITY))));
         }
     }
 
@@ -380,8 +389,9 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         final ListTag tags = new ListTag();
         sorted(source).forEach(item -> {
             final CompoundTag itemTag = new CompoundTag();
-            itemTag.put(NbtTagConstants.STACK, item.getItemStack().saveOptional(provider));
-            itemTag.putInt(TAG_PROTECTED_QUANTITY, item.getAmount());
+            final ItemStorage normalizedItem = normalizedClimateItem(item);
+            itemTag.put(NbtTagConstants.STACK, normalizedItem.getItemStack().saveOptional(provider));
+            itemTag.putInt(TAG_PROTECTED_QUANTITY, normalizedItem.getAmount());
             tags.add(itemTag);
         });
         return tags;
@@ -399,9 +409,47 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         buf.writeInt(sorted.size());
         for (final ItemStorage item : sorted)
         {
-            Utils.serializeCodecMess(buf, item.getItemStack());
-            buf.writeInt(item.getAmount());
+            final ItemStorage normalizedItem = normalizedClimateItem(item);
+            Utils.serializeCodecMess(buf, normalizedItem.getItemStack());
+            buf.writeInt(normalizedItem.getAmount());
         }
+    }
+
+    /**
+     * Parse a selected item stack from NBT and repair old entries that stored a zero stack count.
+     *
+     * @param provider holder lookup used to deserialize item stacks
+     * @param stackTag persisted selected item stack tag
+     * @return count-normalized selected item stack
+     */
+    private static ItemStack parseSelectedStack(final @Nonnull HolderLookup.Provider provider, final CompoundTag stackTag)
+    {
+        final CompoundTag normalizedTag = stackTag.copy();
+        if (normalizedTag.contains("count") && normalizedTag.getInt("count") <= 0)
+        {
+            normalizedTag.putInt("count", 1);
+        }
+        if (normalizedTag.contains("Count") && normalizedTag.getInt("Count") <= 0)
+        {
+            normalizedTag.putInt("Count", 1);
+        }
+
+        final ItemStack stack = ItemStack.parseOptional(provider, normalizedTag);
+        stack.setCount(stack.isEmpty() ? 0 : 1);
+        return stack;
+    }
+
+    /**
+     * Keep the selected item stack as identity-only while the protected item count remains separate.
+     *
+     * @param item selected material and protected item count
+     * @return normalized item storage
+     */
+    private static ItemStorage normalizedClimateItem(final ItemStorage item)
+    {
+        final ItemStack stack = item.getItemStack().copy();
+        stack.setCount(stack.isEmpty() ? 0 : 1);
+        return new ItemStorage(stack, Math.max(0, item.getAmount()), item.ignoreDamageValue(), item.ignoreNBT());
     }
 
     /**

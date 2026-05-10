@@ -174,7 +174,7 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
             {
                 final ItemStack stack = items.get(index).getItemStack().copy();
                 String cmuLabel = String.valueOf(GreenhouseClimateItemModule.climateModificationUnit(stack));
-                stack.setCount(items.get(index).getAmount());
+                stack.setCount(1);
                 rowPane.findPaneOfTypeByID(ITEM_NAME, Text.class).setText(stack.getHoverName());
                 rowPane.findPaneOfTypeByID(ITEM_CLIMATE_MODIFICATION_UNIT, Text.class).setText(Component.literal(cmuLabel == null ? "None" : cmuLabel));
                 rowPane.findPaneOfTypeByID(ITEM_ICON, ItemIcon.class).setItem(stack);

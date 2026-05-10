@@ -28,7 +28,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * @param listType increase or decrease list id
  * @param action add or remove action id
  * @param itemStack item stack being added or removed
- * @param protectedQuantity stack count the worker should leave in storage
+ * @param protectedQuantity item count the worker should leave in storage
  */
 public record SetGreenhouseClimateItemMessage(BlockPos buildingPos, int moduleType, int listType, int action, ItemStack itemStack, int protectedQuantity)
     implements IServerboundPayload
@@ -100,7 +100,9 @@ public record SetGreenhouseClimateItemMessage(BlockPos buildingPos, int moduleTy
         }
 
         final ClimateItemList list = ClimateItemList.byId(listType);
-        final ItemStorage item = new ItemStorage(itemStack.copy(), protectedQuantity);
+        final ItemStack selectedStack = itemStack.copy();
+        selectedStack.setCount(1);
+        final ItemStorage item = new ItemStorage(selectedStack, Math.max(0, protectedQuantity));
         if (ClimateItemAction.byId(action) == ClimateItemAction.REMOVE)
         {
             module.removeItem(list, item);

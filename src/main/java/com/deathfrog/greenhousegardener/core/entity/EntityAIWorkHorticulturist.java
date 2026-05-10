@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.OptionalInt;
 
 import javax.annotation.Nonnull;
 
@@ -42,7 +41,6 @@ import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimat
 import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayCheckResult;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayResult;
 import com.minecolonies.api.colony.ICitizenData;
-import com.minecolonies.api.colony.buildings.workerbuildings.IWareHouse;
 import com.minecolonies.api.colony.interactionhandling.ChatPriority;
 import com.minecolonies.api.entity.ai.statemachine.AITarget;
 import com.minecolonies.api.entity.ai.statemachine.states.AIWorkerState;
@@ -259,7 +257,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             new AITarget<IAIState>(HorticulturistState.TRANSFORM_FIELD, this::transformField, 50),
             new AITarget<IAIState>(HorticulturistState.MAINTAIN_FIELD, this::maintainField, 50),
             new AITarget<IAIState>(HorticulturistState.UNSET_FIELD_SEED, this::unsetFieldSeed, 50),
-            new AITarget<IAIState>(HorticulturistState.WANDER_IN_BUILDING, this::wanderInBuilding, 20));
+            new AITarget<IAIState>(HorticulturistState.WANDER_IN_BUILDING, this::wanderInBuilding, 50));
         worker.setCanPickUpLoot(true);
     }
 
@@ -1102,7 +1100,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     protected IAIState wanderInBuilding()
     {
-        if (!EntityNavigationUtils.walkToRandomPosAround(worker, building.getPosition(), 10, .8))
+        if (!EntityNavigationUtils.walkToRandomPosWithin(worker, 10, .8, building.getCorners()))
         {
             return HorticulturistState.WANDER_IN_BUILDING;
         }
@@ -1265,7 +1263,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             for (final ClimateItemList list : ClimateItemList.values())
             {
-                final int targetBalance = module.getLedgerLimit(list);
+                final int targetBalance = module.getLedgerTargetBalance();
                 if (!module.isLedgerUnderTarget(list, targetBalance))
                 {
                     continue;
@@ -1323,13 +1321,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
-     * Build a climate ledger target and cap requests to hut stock plus nearest warehouse surplus over the protected stack count.
+     * Build a climate ledger target and let the request system enforce the protected item remainder.
      *
      * @param module climate item module
      * @param list increase or decrease list
-     * @param item selected material and protected stack count
+     * @param item selected material and protected item count
      * @param targetBalance desired ledger balance
-     * @return requestable material target, or null when the item has no surplus available
+     * @return requestable material target, or null when the item has no modification value
      */
     private ClimateLedgerTarget climateLedgerTarget(
         final GreenhouseClimateItemModule module,
@@ -1337,71 +1335,15 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final ItemStorage item,
         final int targetBalance)
     {
-        final ItemStack stack = item.getItemStack();
+        final ItemStack stack = item.getItemStack().copy();
+        stack.setCount(1);
         int requestCount = module.getLedgerRequestCount(list, stack, targetBalance);
         if (requestCount <= 0)
         {
             return null;
         }
 
-        final int protectedStacks = Math.max(0, item.getAmount());
-        final int protectedQuantity = protectedItemCount(stack, protectedStacks);
-        final OptionalInt usableQuantity = usableClimateMaterialQuantity(stack, protectedQuantity);
-        if (usableQuantity.isPresent())
-        {
-            if (usableQuantity.getAsInt() <= 0)
-            {
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped climate material {} because usable storage is 0 after protecting {} warehouse items.",
-                    building.getColony().getID(), stack, protectedQuantity));
-                return null;
-            }
-
-            requestCount = Math.min(requestCount, usableQuantity.getAsInt());
-        }
-
-        return new ClimateLedgerTarget(module, list, stack.copy(), requestCount, protectedStacks, protectedQuantity, targetBalance);
-    }
-
-    /**
-     * Count matching material that may be consumed now.
-     *
-     * Greenhouse hut inventory is considered already delivered and fully usable. The protected count only applies
-     * to the nearest warehouse inventory because that is where new deliveries are sourced from.
-     *
-     * @param stack selected material to count
-     * @param protectedQuantity number of matching warehouse items to leave untouched
-     * @return matching item count, or empty when no storage source should cap requests
-     */
-    private OptionalInt usableClimateMaterialQuantity(final ItemStack stack, final int protectedQuantity)
-    {
-        final int hutQuantity = InventoryUtils.getCountFromBuilding(
-            building,
-            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true));
-
-        final IWareHouse warehouse = building.getColony().getServerBuildingManager().getClosestWarehouseInColony(building.getPosition());
-        if (warehouse == null)
-        {
-            return hutQuantity > 0 ? OptionalInt.of(hutQuantity) : OptionalInt.empty();
-        }
-
-        final int warehouseQuantity = InventoryUtils.getCountFromBuilding(
-            warehouse,
-            candidate -> !candidate.isEmpty() && ItemStackUtils.compareItemStacksIgnoreStackSize(candidate, stack, true, true));
-        final long totalQuantity = (long) hutQuantity + (long) Math.max(0, warehouseQuantity - protectedQuantity);
-        return OptionalInt.of(totalQuantity > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalQuantity);
-    }
-
-    /**
-     * Convert the UI's protected stack count to the request system's item count.
-     *
-     * @param stack selected material stack
-     * @param protectedStacks number of stacks to protect
-     * @return protected item count
-     */
-    private static int protectedItemCount(final ItemStack stack, final int protectedStacks)
-    {
-        final long protectedItems = (long) Math.max(0, protectedStacks) * (long) stack.getMaxStackSize();
-        return protectedItems > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) protectedItems;
+        return new ClimateLedgerTarget(module, list, stack, requestCount, Math.max(0, item.getAmount()), targetBalance);
     }
 
     /**
@@ -2237,7 +2179,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         return target.requestDescription()
             + " item=" + target.stack()
             + " requestCount=" + target.requestCount()
-            + " protectedStacks=" + target.protectedStacks()
             + " protectedQuantity=" + target.protectedQuantity()
             + " targetBalance=" + target.targetBalance();
     }
@@ -2385,7 +2326,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         ClimateItemList list,
         ItemStack stack,
         int requestCount,
-        int protectedStacks,
         int protectedQuantity,
         int targetBalance)
     {
@@ -2408,7 +2348,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         private ItemStack requestStack()
         {
             final ItemStack requestStack = stack.copy();
-            requestStack.setCount(requestCount);
+            requestStack.setCount(1);
             return requestStack;
         }
 

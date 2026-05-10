@@ -65,8 +65,12 @@ public abstract class GreenhouseClimateItemModuleView extends AbstractBuildingMo
         for (int i = 0; i < size; i++)
         {
             final ItemStack stack = Utils.deserializeCodecMess(buf);
+            if (!stack.isEmpty())
+            {
+                stack.setCount(1);
+            }
             final int protectedQuantity = buf.readInt();
-            target.add(new ItemStorage(stack, protectedQuantity));
+            target.add(new ItemStorage(stack, Math.max(0, protectedQuantity)));
         }
     }
 }

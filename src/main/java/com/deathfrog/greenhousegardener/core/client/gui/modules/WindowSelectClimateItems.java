@@ -39,7 +39,7 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
 {
     private static final String BUTTON_DONE = "done";
     private static final String BUTTON_CANCEL = "cancel";
-    private static final int DEFAULT_PROTECTED_STACKS = 1;
+    private static final int DEFAULT_PROTECTED_ITEMS = 0;
     private static final String PROTECTED_QUANTITY_TOOLTIP = "com.greenhousegardener.core.gui.climate.quantity.protected.tooltip";
     private static final int WHITE = Color.getByName("white", 0);
 
@@ -70,7 +70,7 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
         registerButton(BUTTON_SELECT, this::selectClicked);
 
         final TextField quantityInput = findPaneOfTypeByID("quantity", TextField.class);
-        quantityInput.setText(String.valueOf(DEFAULT_PROTECTED_STACKS));
+        quantityInput.setText(String.valueOf(DEFAULT_PROTECTED_ITEMS));
         PaneBuilders.tooltipBuilder().hoverPane(quantityInput).build().setText(Component.translatable(PROTECTED_QUANTITY_TOOLTIP));
 
         findPaneOfTypeByID("resourceIcon", ItemIcon.class).setItem(ItemStack.EMPTY);
@@ -142,7 +142,7 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
         final ItemStack selected = findPaneOfTypeByID("resourceIcon", ItemIcon.class).getItem();
         if (!selected.isEmpty())
         {
-            consumer.accept(selected, getProtectedQuantity());
+            consumer.accept(normalizedSelectedStack(selected), getProtectedQuantity());
         }
         close();
     }
@@ -150,19 +150,32 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
     /**
      * Read the protected quantity from the input field.
      *
-     * @return parsed protected stack count, or one when the input is invalid
+     * @return parsed protected item count, or zero when the input is invalid
      */
     private int getProtectedQuantity()
     {
         try
         {
-            return Integer.parseInt(findPaneOfTypeByID("quantity", TextField.class).getText());
+            return Math.max(0, Integer.parseInt(findPaneOfTypeByID("quantity", TextField.class).getText()));
         }
         catch (final NumberFormatException ex)
         {
-            Log.getLogger().warn("Invalid greenhouse climate item protected quantity, defaulting to 1.");
-            return DEFAULT_PROTECTED_STACKS;
+            Log.getLogger().warn("Invalid greenhouse climate item protected quantity, defaulting to 0.");
+            return DEFAULT_PROTECTED_ITEMS;
         }
+    }
+
+    /**
+     * Keep the selected stack as an item identity while the protected amount travels separately.
+     *
+     * @param selected stack selected in the UI
+     * @return count-normalized selected stack
+     */
+    private static ItemStack normalizedSelectedStack(final ItemStack selected)
+    {
+        final ItemStack normalized = selected.copy();
+        normalized.setCount(1);
+        return normalized;
     }
 
     /**
