@@ -13,6 +13,7 @@ import java.util.function.Predicate;
 import org.apache.logging.log4j.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
 
+import com.deathfrog.greenhousegardener.Config;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.core.ModTags;
@@ -22,12 +23,15 @@ import com.deathfrog.greenhousegardener.core.colony.buildings.modules.Greenhouse
 import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
+import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildingextensions.IBuildingExtension;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
 import com.minecolonies.api.colony.buildings.modules.IAltersRequiredItems;
 import com.minecolonies.api.colony.buildings.modules.IBuildingEventsModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
+import com.minecolonies.api.colony.buildings.modules.ITickingModule;
+import com.minecolonies.api.util.MessageUtils;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.items.ItemCrop;
 
@@ -42,6 +46,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -49,8 +54,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
-public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule, IBuildingEventsModule, IAltersRequiredItems
+public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule, IBuildingEventsModule, IAltersRequiredItems, ITickingModule
 {
     private static final int MAX_FIELD_SLOTS = 4;
     private static final int BIOMES_LEVEL1 = 1;
@@ -66,11 +72,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_LAST_MAINTENANCE_VISIT_DAYS = "lastMaintenanceVisitDays";
     private static final String TAG_LAST_CONVERSION_BLOCKED_DAYS = "lastConversionBlockedDays";
     private static final String TAG_FIRST_MISSED_MAINTENANCE_DAYS = "firstMissedMaintenanceDays";
+    private static final String TAG_LAST_MAINTENANCE_WARNING_DAYS = "lastMaintenanceWarningDays";
+    private static final String TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY = "lastMaintenanceDecayScanDay";
     private static final String TAG_DAY = "day";
     private static final String TAG_NATURAL_BIOMES = "naturalBiomes";
     private static final String TAG_APPLIED_BIOMES = "appliedBiomes";
     private static final String TAG_POS = "pos";
     private static final String TAG_BIOME = "biome";
+    private static final String FIELD_MAINTENANCE_WARNING_MESSAGE = "com.greenhousegardener.biome_maintenance.warning";
 
     private final Map<BlockPos, FieldBiomeAssignment> assignments = new HashMap<>();
     private final Set<BlockPos> ownedFields = new HashSet<>();
@@ -79,8 +88,10 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private final Map<BlockPos, Long> lastMaintenanceVisitDays = new HashMap<>();
     private final Map<BlockPos, Long> lastConversionBlockedDays = new HashMap<>();
     private final Map<BlockPos, Long> firstMissedMaintenanceDays = new HashMap<>();
+    private final Map<BlockPos, Long> lastMaintenanceWarningDays = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
+    private long lastMaintenanceDecayScanDay = Long.MIN_VALUE;
 
     public GreenhouseBiomeModule()
     {
@@ -134,6 +145,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         firstMissedMaintenanceDays.clear();
         readDayMap(compound.getList(TAG_FIRST_MISSED_MAINTENANCE_DAYS, Tag.TAG_COMPOUND), firstMissedMaintenanceDays);
+
+        lastMaintenanceWarningDays.clear();
+        readDayMap(compound.getList(TAG_LAST_MAINTENANCE_WARNING_DAYS, Tag.TAG_COMPOUND), lastMaintenanceWarningDays);
+
+        lastMaintenanceDecayScanDay = compound.contains(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY)
+            ? compound.getLong(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY)
+            : Long.MIN_VALUE;
     }
 
     @SuppressWarnings("null")
@@ -175,6 +193,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         compound.put(TAG_LAST_MAINTENANCE_VISIT_DAYS, writeDayMap(lastMaintenanceVisitDays));
         compound.put(TAG_LAST_CONVERSION_BLOCKED_DAYS, writeDayMap(lastConversionBlockedDays));
         compound.put(TAG_FIRST_MISSED_MAINTENANCE_DAYS, writeDayMap(firstMissedMaintenanceDays));
+        compound.put(TAG_LAST_MAINTENANCE_WARNING_DAYS, writeDayMap(lastMaintenanceWarningDays));
+        compound.putLong(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY, lastMaintenanceDecayScanDay);
     }
 
     @SuppressWarnings("null")
@@ -203,6 +223,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             final BlockPos fieldPosition = field.getPosition().immutable();
             final FieldBiomeAssignment assignment = getAssignment(fieldPosition);
             final GreenhouseClimate naturalClimate = naturalClimate(level, fieldPosition);
+            final int daysSinceLastMaintenance = daysSinceLastMaintenance(fieldPosition);
             buf.writeInt(i);
             buf.writeBlockPos(fieldPosition);
             ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, field.getSeed());
@@ -211,7 +232,167 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             buf.writeEnum(naturalClimate.temperature());
             buf.writeEnum(naturalClimate.humidity());
             buf.writeBoolean(isOwned(fieldPosition));
+            buf.writeInt(daysSinceLastMaintenance);
         }
+    }
+
+    @Override
+    public void onColonyTick(@NotNull final IColony colony)
+    {
+        final ServerLevel level = getServerLevel();
+        if (building == null || colony == null || level == null)
+        {
+            return;
+        }
+
+        final long colonyDay = colony.getDay();
+        if (lastMaintenanceDecayScanDay == colonyDay)
+        {
+            return;
+        }
+
+        lastMaintenanceDecayScanDay = colonyDay;
+        final boolean changed = expireUnmaintainedFieldOverlays(level, colonyDay);
+        markDirty();
+        if (changed)
+        {
+            building.markDirty();
+        }
+    }
+
+    /**
+     * Revert modified field overlays whose maintenance grace window has elapsed.
+     *
+     * @param level server level containing the field overlays
+     * @param colonyDay current colony day
+     * @return true when any field state changed
+     */
+    private boolean expireUnmaintainedFieldOverlays(final ServerLevel level, final long colonyDay)
+    {
+        boolean changed = false;
+        for (final FarmField field : getManagedFields())
+        {
+            if (field == null)
+            {
+                continue;
+            }
+
+            final BlockPos fieldPosition = field.getPosition();
+            if (fieldPosition == null || !isFieldModifiedFromNatural(level, fieldPosition) || !hasTrackedOverlay(field))
+            {
+                changed |= firstMissedMaintenanceDays.remove(fieldPosition) != null;
+                changed |= lastMaintenanceWarningDays.remove(fieldPosition) != null;
+                continue;
+            }
+
+            final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, colonyDay);
+            if (decayStatus == null)
+            {
+                continue;
+            }
+
+            if (decayStatus.daysSinceMaintenance() <= 0)
+            {
+                changed |= firstMissedMaintenanceDays.remove(fieldPosition) != null;
+                changed |= lastMaintenanceWarningDays.remove(fieldPosition) != null;
+                continue;
+            }
+
+            final BlockPos immutablePosition = fieldPosition.immutable();
+            firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> decayStatus.lastMaintenanceDay() + 1);
+            if (decayStatus.shouldRevert())
+            {
+                revertFieldToNaturalBiome(immutablePosition);
+                clearInvalidSeedForActualBiome(level, field);
+                changed = true;
+                continue;
+            }
+
+            if (shouldSendMaintenanceWarning(immutablePosition, decayStatus))
+            {
+                sendMaintenanceWarning(field, immutablePosition, decayStatus);
+                lastMaintenanceWarningDays.put(immutablePosition, colonyDay);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /**
+     * Check whether the system should warn players for a newly completed missed-maintenance day.
+     *
+     * @param fieldPosition field anchor position
+     * @param decayStatus current maintenance decay status
+     * @return true when this tick represents a completed missed-maintenance day that has not been warned yet
+     */
+    private boolean shouldSendMaintenanceWarning(final BlockPos fieldPosition, final MaintenanceDecayStatus decayStatus)
+    {
+        return decayStatus.shouldWarn()
+            && !dayEquals(lastMaintenanceWarningDays.get(fieldPosition), decayStatus.colonyDay())
+            && Config.fieldReversionWarning.get();
+    }
+
+    /**
+     * Warn colony players that a modified field will revert if maintenance does not resume.
+     *
+     * @param field field being monitored
+     * @param fieldPosition field anchor position
+     * @param decayStatus current maintenance decay status
+     */
+    private void sendMaintenanceWarning(final FarmField field, final BlockPos fieldPosition, final MaintenanceDecayStatus decayStatus)
+    {
+        if (building == null || building.getColony() == null)
+        {
+            return;
+        }
+
+        MessageUtils.format(Component.translatable(
+            FIELD_MAINTENANCE_WARNING_MESSAGE,
+            fieldDescription(field, fieldPosition),
+            decayStatus.daysUntilReversion()))
+            .withPriority(MessageUtils.MessagePriority.IMPORTANT)
+            .sendTo(building.getColony())
+            .forAllPlayers();
+    }
+
+    /**
+     * Format a warning-friendly field location with the selected crop when one exists.
+     *
+     * @param field field to inspect
+     * @param fieldPosition field anchor position
+     * @return location text, optionally followed by the crop name
+     */
+    private static Component fieldDescription(final FarmField field, final BlockPos fieldPosition)
+    {
+        final String position = fieldPosition == null ? "unknown" : fieldPosition.toShortString();
+        final ItemStack seed = field == null ? ItemStack.EMPTY : field.getSeed();
+        if (seed == null || seed.isEmpty())
+        {
+            return Component.literal(position + "");
+        }
+
+        return Component.translatable(
+            "com.greenhousegardener.biome_maintenance.warning.field_crop",
+            position,
+            seed.getHoverName());
+    }
+
+    /**
+     * Get the number of colony days since a field was last successfully maintained.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @return zero for today, positive day count for older maintenance, or -1 when no maintenance is recorded
+     */
+    private int daysSinceLastMaintenance(final BlockPos fieldPosition)
+    {
+        if (building == null || building.getColony() == null)
+        {
+            return -1;
+        }
+
+        final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, building.getColony().getDay());
+        return decayStatus == null ? -1 : decayStatus.daysSinceMaintenance();
     }
 
     /**
@@ -453,7 +634,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final BlockPos immutablePosition = fieldPosition.immutable();
         lastConvertedDays.put(immutablePosition, colonyDay);
         lastFieldVisitDays.put(immutablePosition, colonyDay);
+        lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
         firstMissedMaintenanceDays.remove(immutablePosition);
+        lastMaintenanceWarningDays.remove(immutablePosition);
         markDirty();
     }
 
@@ -511,6 +694,61 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
+     * Check whether a field has already been successfully maintained on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when maintenance succeeded on that day
+     */
+    public boolean wasFieldMaintainedOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastMaintenanceVisitDays.get(fieldPosition), colonyDay)
+            && !firstMissedMaintenanceDays.containsKey(fieldPosition);
+    }
+
+    /**
+     * Check whether a field maintenance visit failed on a colony day.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when maintenance was attempted but not completed on that day
+     */
+    public boolean wasFieldMaintenanceMissedOnDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        return dayEquals(lastMaintenanceVisitDays.get(fieldPosition), colonyDay)
+            && firstMissedMaintenanceDays.containsKey(fieldPosition);
+    }
+
+    /**
+     * Check whether a modified field should still show active conditioning effects.
+     *
+     * <p>Ambient particles are suppressed once the field enters the same stale-maintenance window that produces
+     * maintenance warnings: no successful maintenance yesterday, and no successful maintenance yet today.</p>
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return true when the field was successfully maintained or converted today or yesterday
+     */
+    public boolean isFieldConditioningActiveForDay(final BlockPos fieldPosition, final long colonyDay)
+    {
+        final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, colonyDay);
+        return decayStatus != null && decayStatus.isConditioningActive();
+    }
+
+    /**
+     * Get how many colony days remain before the field reverts to its natural biome.
+     *
+     * @param fieldPosition position of the farm field anchor
+     * @param colonyDay current colony day
+     * @return remaining colony days, or the configured grace period when no prior maintenance exists
+     */
+    public int daysUntilMaintenanceReversion(final BlockPos fieldPosition, final long colonyDay)
+    {
+        final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, colonyDay);
+        return decayStatus == null ? Config.maintenanceRevertDays.get() : decayStatus.daysUntilReversion();
+    }
+
+    /**
      * Record that conversion for a field could not proceed on a colony day.
      *
      * @param fieldPosition position of the field whose conversion is blocked
@@ -556,6 +794,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastFieldVisitDays.put(immutablePosition, colonyDay);
         lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
         firstMissedMaintenanceDays.remove(immutablePosition);
+        lastMaintenanceWarningDays.remove(immutablePosition);
         markDirty();
     }
 
@@ -574,9 +813,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         final BlockPos immutablePosition = fieldPosition.immutable();
+        final Long lastMaintenanceDay = lastRecordedMaintenanceDay(immutablePosition);
+        final long missedMaintenanceStartDay = lastMaintenanceDay != null && lastMaintenanceDay < colonyDay
+            ? lastMaintenanceDay + 1
+            : colonyDay;
         lastFieldVisitDays.put(immutablePosition, colonyDay);
         lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
-        final long firstMissedDay = firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> colonyDay);
+        final long firstMissedDay = firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> missedMaintenanceStartDay);
         markDirty();
         return firstMissedDay;
     }
@@ -593,8 +836,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
+        final FarmField field = getField(fieldPosition);
         restoreFieldOverlay(fieldPosition);
-        firstMissedMaintenanceDays.remove(fieldPosition);
+        if (field == null || !hasTrackedOverlay(field))
+        {
+            firstMissedMaintenanceDays.remove(fieldPosition);
+            lastMaintenanceWarningDays.remove(fieldPosition);
+        }
         markDirty();
     }
 
@@ -670,6 +918,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         {
             ownedFields.clear();
             assignments.clear();
+            lastConvertedDays.clear();
+            lastFieldVisitDays.clear();
+            lastMaintenanceVisitDays.clear();
+            lastConversionBlockedDays.clear();
+            firstMissedMaintenanceDays.clear();
+            lastMaintenanceWarningDays.clear();
             return;
         }
 
@@ -682,6 +936,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceVisitDays.clear();
         lastConversionBlockedDays.clear();
         firstMissedMaintenanceDays.clear();
+        lastMaintenanceWarningDays.clear();
         markDirty();
     }
 
@@ -894,6 +1149,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceVisitDays.remove(fieldPosition);
         lastConversionBlockedDays.remove(fieldPosition);
         firstMissedMaintenanceDays.remove(fieldPosition);
+        lastMaintenanceWarningDays.remove(fieldPosition);
         markDirty();
         return true;
     }
@@ -982,6 +1238,91 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         GreenhouseBiomeOverlayService.restoreOverlay(serverLevel, biomeFootprint(field), naturalBiomes, appliedBiomes);
+    }
+
+    /**
+     * Check whether this field still has biome cells tracked as greenhouse-applied.
+     *
+     * @param field field to inspect
+     * @return true when at least one applied biome cell belongs to this field footprint
+     */
+    private boolean hasTrackedOverlay(final FarmField field)
+    {
+        if (field == null || appliedBiomes.isEmpty())
+        {
+            return false;
+        }
+
+        final BoundingBox region = biomeFootprint(field).paddedBiomeRegion();
+        return appliedBiomes.keySet().stream().anyMatch(region::isInside);
+    }
+
+    /**
+     * Resolve the latest successful climate work day for a field.
+     *
+     * @param fieldPosition field anchor position
+     * @return last successful maintenance or conversion day, or null when never converted
+     */
+    private Long lastRecordedMaintenanceDay(final BlockPos fieldPosition)
+    {
+        final Long firstMissedDay = firstMissedMaintenanceDays.get(fieldPosition);
+        if (firstMissedDay != null)
+        {
+            return firstMissedDay - 1;
+        }
+
+        return lastMaintenanceVisitDays.containsKey(fieldPosition)
+            ? lastMaintenanceVisitDays.get(fieldPosition)
+            : lastConvertedDays.get(fieldPosition);
+    }
+
+    /**
+     * Resolve the single source of truth for maintenance decay math.
+     *
+     * @param fieldPosition field anchor position
+     * @param colonyDay current colony day
+     * @return decay status, or null when the field has never been converted or maintained
+     */
+    private MaintenanceDecayStatus maintenanceDecayStatus(final BlockPos fieldPosition, final long colonyDay)
+    {
+        final Long lastMaintenanceDay = lastRecordedMaintenanceDay(fieldPosition);
+        if (lastMaintenanceDay == null)
+        {
+            return null;
+        }
+
+        final int daysSinceMaintenance = (int) Math.max(0, colonyDay - lastMaintenanceDay);
+        return new MaintenanceDecayStatus(
+            lastMaintenanceDay,
+            colonyDay,
+            daysSinceMaintenance,
+            Math.max(0, Config.maintenanceRevertDays.get() - daysSinceMaintenance));
+    }
+
+    /**
+     * Maintenance decay status for a field on a colony day.
+     *
+     * @param lastMaintenanceDay last successful climate maintenance/conversion day
+     * @param colonyDay current colony day
+     * @param daysSinceMaintenance days since the last successful maintenance/conversion
+     * @param daysUntilReversion days left before natural reversion
+     */
+    private record MaintenanceDecayStatus(long lastMaintenanceDay, long colonyDay, int daysSinceMaintenance, int daysUntilReversion)
+    {
+        private boolean shouldRevert()
+        {
+            return daysSinceMaintenance >= Config.maintenanceRevertDays.get();
+        }
+
+        private boolean shouldWarn()
+        {
+            return daysSinceMaintenance >= 2;
+        }
+
+        private boolean isConditioningActive()
+        {
+            return daysSinceMaintenance <= 1;
+        }
     }
 
     /**

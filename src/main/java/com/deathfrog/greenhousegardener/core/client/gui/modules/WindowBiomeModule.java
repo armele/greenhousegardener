@@ -1,5 +1,7 @@
 package com.deathfrog.greenhousegardener.core.client.gui.modules;
 
+import javax.annotation.Nonnull;
+
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseBiomeModuleView;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseBiomeModuleView.FieldBiomeView;
@@ -252,10 +254,10 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
             final ItemIcon seedIcon = row.findPaneOfTypeByID(FIELD_SEED, ItemIcon.class);
             seedIcon.setItem(field.seed().isEmpty() ? ItemStack.EMPTY : field.seed());
 
-            addPositionTooltip(tempDropdown, field.position());
-            addPositionTooltip(humidityDropdown, field.position());
-            addPositionTooltip(seedIcon, field.position());
-            addPositionTooltip(ownedCheckbox, field.position());
+            addPositionTooltip(tempDropdown, field);
+            addPositionTooltip(humidityDropdown, field);
+            addPositionTooltip(seedIcon, field);
+            addPositionTooltip(ownedCheckbox, field);
         }
         finally
         {
@@ -434,17 +436,56 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     }
 
     /**
-     * Adds a tooltip showing the world position of a field.
+     * Adds a tooltip showing the world position and maintenance history of a field.
      *
      * @param pane pane receiving the tooltip
-     * @param position field block position
+     * @param field field displayed by the row
      */
-    private static void addPositionTooltip(final Pane pane, final BlockPos position)
+    private static void addPositionTooltip(final Pane pane, final FieldBiomeView field)
     {
+        final BlockPos position = field.position();
+        final MutableComponent tooltip = Component.translatable(
+            "com.greenhousegardener.core.gui.biome.field_position",
+            position.getX(),
+            position.getY(),
+            position.getZ());
+
+        if (field.owned() && field.daysSinceLastMaintenance() >= 0)
+        {
+            tooltip.append("\n").append(maintenanceTooltipLine(field.daysSinceLastMaintenance()));
+        }
+
         pane.setHoverPane(null);
         PaneBuilders.tooltipBuilder()
-            .append(Component.translatable("com.greenhousegardener.core.gui.biome.field_position", position.getX(), position.getY(), position.getZ()))
+            .append(tooltip)
             .hoverPane(pane)
             .build();
+    }
+
+    /**
+     * Build the translated maintenance-history tooltip line.
+     *
+     * @param daysSinceLastMaintenance zero for today or a positive day count
+     * @return translated maintenance-history line
+     */
+    @SuppressWarnings("null")
+    private static @Nonnull MutableComponent maintenanceTooltipLine(final int daysSinceLastMaintenance)
+    {
+        if (daysSinceLastMaintenance == 0)
+        {
+            return Component.translatable("com.greenhousegardener.core.gui.biome.field_last_maintained.today");
+        }
+        if (daysSinceLastMaintenance == 1)
+        {
+            return Component.translatable("com.greenhousegardener.core.gui.biome.field_last_maintained.day_ago");
+        }
+        if (daysSinceLastMaintenance > 0)
+        {
+            return Component.translatable(
+                "com.greenhousegardener.core.gui.biome.field_last_maintained.days_ago",
+                daysSinceLastMaintenance);
+        }
+
+        return Component.translatable("com.greenhousegardener.core.gui.biome.field_last_maintained.today");
     }
 }

@@ -26,6 +26,8 @@ public class Config
     public static final ConfigValue<Integer>  climateControlUnitsMedium;
     public static final ConfigValue<Integer>  climateControlUnitsHigh;
 
+    public static final ConfigValue<Boolean>  fieldReversionWarning;
+
     static
     {
         BUILDER.push("climatecontrol");
@@ -39,9 +41,14 @@ public class Config
         baseMaintenanceCost = BUILDER.comment("Maintenance cost (CCU)").defineInRange("baseMaintenanceCost", 1, 1, 100);
         BUILDER.pop();
 
+        BUILDER.push("notifications");
+        fieldReversionWarning = BUILDER.comment("Notify of pending field reversion.").define("fieldReversionWarning", true);
+        BUILDER.pop();
+
+
         BUILDER.push("other");
         maintenanceRevertDays = BUILDER.comment("Colony days a field can miss maintenance before reverting to its natural biome").defineInRange("maintenanceRevertDays", 5, 1, 30);
-        roofPercentage = BUILDER.comment("What percentage of the roof must be a greenhouse material?").defineInRange("roofPercentage", 75, 1, 100);
+        roofPercentage = BUILDER.comment("What percentage of the roof must be a greenhouse material?").defineInRange("roofPercentage", 75, 50, 100);
         ambientPoofsEnabled = BUILDER.comment("Whether maintained greenhouse fields occasionally emit ambient poof particles").define("ambientPoofsEnabled", true);
         ambientPoofIntervalTicks = BUILDER.comment("Ticks between ambient greenhouse poof pulses").defineInRange("ambientPoofIntervalTicks", 100, 20, 1200);
         BUILDER.pop();

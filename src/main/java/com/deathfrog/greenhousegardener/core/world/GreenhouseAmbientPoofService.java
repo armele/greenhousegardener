@@ -55,7 +55,7 @@ public final class GreenhouseAmbientPoofService
                 final GreenhouseBiomeModule module = building.getModule(GreenhouseBiomeModule.class, ignored -> true);
                 if (module != null)
                 {
-                    emitForModule(serverLevel, module);
+                    emitForModule(serverLevel, module, colony.getDay());
                 }
             }
         }
@@ -66,13 +66,17 @@ public final class GreenhouseAmbientPoofService
      *
      * @param level server level containing the fields
      * @param module greenhouse biome module to inspect
+     * @param colonyDay current colony day
      */
-    private static void emitForModule(final ServerLevel level, final GreenhouseBiomeModule module)
+    private static void emitForModule(final ServerLevel level, final GreenhouseBiomeModule module, final long colonyDay)
     {
         for (final FarmField field : module.getManagedFields())
         {
             final BlockPos fieldPosition = field == null ? null : field.getPosition();
-            if (fieldPosition == null || !module.isFieldModifiedFromNatural(level, fieldPosition) || !hasNearbyPlayer(level, fieldPosition))
+            if (fieldPosition == null
+                || !module.isFieldModifiedFromNatural(level, fieldPosition)
+                || !module.isFieldConditioningActiveForDay(fieldPosition, colonyDay)
+                || !hasNearbyPlayer(level, fieldPosition))
             {
                 continue;
             }
@@ -102,14 +106,7 @@ public final class GreenhouseAmbientPoofService
 
         for (int i = 0; i < PARTICLE_POSITIONS_PER_FIELD; i++)
         {
-            final int x = randomBetween(random, minX, maxX);
-            final int z = randomBetween(random, minZ, maxZ);
-            if (!level.hasChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z)))
-            {
-                continue;
-            }
-
-            emitConditioningParticles(level, assignment, naturalClimate, x + 0.5D, center.getY() + 1.0D, z + 0.5D);
+            emitConditioningParticles(level, assignment, naturalClimate, random, minX, maxX, center.getY() + 1.0D, minZ, maxZ);
         }
     }
 
@@ -122,39 +119,77 @@ public final class GreenhouseAmbientPoofService
      * @param level server level receiving particles
      * @param assignment requested field climate
      * @param naturalClimate field climate before greenhouse conditioning
-     * @param x particle x coordinate
+     * @param random random source used to sample particle positions
+     * @param minX minimum field x coordinate
+     * @param maxX maximum field x coordinate
      * @param y particle y coordinate
-     * @param z particle z coordinate
+     * @param minZ minimum field z coordinate
+     * @param maxZ maximum field z coordinate
      */
     @SuppressWarnings("null")
     private static void emitConditioningParticles(
         final ServerLevel level,
         final FieldBiomeAssignment assignment,
         final GreenhouseClimate naturalClimate,
-        final double x,
+        final RandomSource random,
+        final int minX,
+        final int maxX,
         final double y,
-        final double z)
+        final int minZ,
+        final int maxZ)
     {
         final int temperatureChange = assignment.temperature().ordinal() - naturalClimate.temperature().ordinal();
         final int humidityChange = assignment.humidity().ordinal() - naturalClimate.humidity().ordinal();
 
         if (temperatureChange > 0)
         {
-            emitParticle(level, ParticleTypes.SMALL_FLAME, x, y, z);
+            emitParticleAtRandomFieldPosition(level, random, ParticleTypes.SMALL_FLAME, minX, maxX, y, minZ, maxZ);
         }
         else if (temperatureChange < 0)
         {
-            emitParticle(level, ParticleTypes.SNOWFLAKE, x, y, z);
+            emitParticleAtRandomFieldPosition(level, random, ParticleTypes.SNOWFLAKE, minX, maxX, y, minZ, maxZ);
         }
 
         if (humidityChange > 0)
         {
-            emitParticle(level, ParticleTypes.POOF, x, y, z);
+            emitParticleAtRandomFieldPosition(level, random, ParticleTypes.CLOUD, minX, maxX, y, minZ, maxZ);
         }
         else if (humidityChange < 0)
         {
-            emitParticle(level, ParticleTypes.WHITE_ASH, x, y, z);
+            emitParticleAtRandomFieldPosition(level, random, ParticleTypes.DUST_PLUME, minX, maxX, y, minZ, maxZ);
         }
+    }
+
+    /**
+     * Pick a random field position for one particle type, allowing each climate axis to render independently.
+     *
+     * @param level server level receiving particles
+     * @param random random source from the server level
+     * @param particle particle type to emit
+     * @param minX minimum field x coordinate
+     * @param maxX maximum field x coordinate
+     * @param y particle y coordinate
+     * @param minZ minimum field z coordinate
+     * @param maxZ maximum field z coordinate
+     */
+    private static void emitParticleAtRandomFieldPosition(
+        final ServerLevel level,
+        final RandomSource random,
+        final @Nonnull ParticleOptions particle,
+        final int minX,
+        final int maxX,
+        final double y,
+        final int minZ,
+        final int maxZ)
+    {
+        final int x = randomBetween(random, minX, maxX);
+        final int z = randomBetween(random, minZ, maxZ);
+        if (!level.hasChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z)))
+        {
+            return;
+        }
+
+        emitParticle(level, particle, x + 0.5D, y, z + 0.5D);
     }
 
     /**

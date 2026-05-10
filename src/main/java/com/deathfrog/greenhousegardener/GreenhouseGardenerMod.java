@@ -11,10 +11,10 @@ import com.deathfrog.greenhousegardener.apiimp.initializer.TileEntityInitializer
 import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
+import com.deathfrog.greenhousegardener.core.items.ModCreativeTabs;
 import com.deathfrog.greenhousegardener.core.items.ModItems;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseAmbientPoofService;
-import com.minecolonies.api.creativetab.ModCreativeTabs;
 import com.mojang.logging.LogUtils;
 
 import net.neoforged.bus.api.IEventBus;
@@ -24,7 +24,6 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
@@ -48,6 +47,7 @@ public class GreenhouseGardenerMod {
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+        ModCreativeTabs.register(modEventBus);
         AdvancementTriggers.DEFERRED_REGISTER.register(modEventBus);
         TileEntityInitializer.BLOCK_ENTITIES.register(modEventBus);
 
@@ -55,9 +55,6 @@ public class GreenhouseGardenerMod {
         // Note that this is necessary if and only if we want *this* class to respond directly to events.
         // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
-
-        // Register the item to a creative tab
-        modEventBus.addListener(this::addCreative);
 
         ModJobsInitializer.DEFERRED_REGISTER.register(modEventBus);  
 
@@ -74,64 +71,6 @@ public class GreenhouseGardenerMod {
 
     private void commonSetup(FMLCommonSetupEvent event) {
             
-    }
-
-    // Add the greenhouse hut item to the MineColonies huts tab.
-    private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey().equals(ModCreativeTabs.HUTS.getKey()))
-        {
-            event.accept(ModItems.blockHutGreenhouseItem);
-            event.accept(ModItems.climateControlHubItem);
-        }
-        else if (event.getTabKey().equals(ModCreativeTabs.FOOD.getKey()))
-        {
-            event.accept(ModItems.cucumber);
-            event.accept(ModItems.spinach);
-            event.accept(ModItems.broccoli);
-            event.accept(ModItems.appleCiderVinegar);
-            event.accept(ModItems.aussieSpread);
-            event.accept(ModItems.aussieToast);
-            event.accept(ModItems.baconButty);
-            event.accept(ModItems.barbecue);
-            event.accept(ModItems.barbecuePlate);
-            event.accept(ModItems.biscuits);
-            event.accept(ModItems.biscuitsAndGravy);
-            event.accept(ModItems.breadcrumbs);
-            event.accept(ModItems.brekkiePlate);
-            event.accept(ModItems.broccoliCheeseCasserole);
-            event.accept(ModItems.cacciatore);
-            event.accept(ModItems.chickenAndWaffles);
-            event.accept(ModItems.chickpeaCurry);
-            event.accept(ModItems.clubSandwich);
-            event.accept(ModItems.clubSandwichPlate);
-            event.accept(ModItems.coleslaw);
-            event.accept(ModItems.cornOil);
-            event.accept(ModItems.cottagePie);
-            event.accept(ModItems.doner);
-            event.accept(ModItems.eggplantParmagiana);
-            event.accept(ModItems.friedChicken);
-            event.accept(ModItems.gamekeepersPie);
-            event.accept(ModItems.garlicCheeseGrits);
-            event.accept(ModItems.generalTsosChicken);
-            event.accept(ModItems.mayo);
-            event.accept(ModItems.mashedPotato);
-            event.accept(ModItems.mintyPeas);
-            event.accept(ModItems.mixedRice);
-            event.accept(ModItems.pastie);
-            event.accept(ModItems.pastry);
-            event.accept(ModItems.pickles);
-            event.accept(ModItems.popcorn);
-            event.accept(ModItems.potatoChips);
-            event.accept(ModItems.rouladen);
-            event.accept(ModItems.sabzi);
-            event.accept(ModItems.sausage);
-            event.accept(ModItems.sausagePizza);
-            event.accept(ModItems.sourdoughBread);
-            event.accept(ModItems.sourdoughStarter);
-            event.accept(ModItems.spanakopita);
-            event.accept(ModItems.spinachSalad);
-            event.accept(ModItems.waffles);
-        }
     }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call

@@ -244,6 +244,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
     }
 
+    private enum RestockShortageOutcome
+    {
+        HANDLE_MATERIAL,
+        UNRESOLVABLE_SHORTAGE
+    }
+
     @SuppressWarnings("unchecked")
     public EntityAIWorkHorticulturist(@NotNull JobsHorticulturist job)
     {
@@ -301,7 +307,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         job.resetNoGlassCounter();
-        job.setBiomeLedgerShortage(false);
 
         final IAIState maintenanceState = nextMaintenanceFieldState(level, module, fields);
         if (maintenanceState != null)
@@ -309,6 +314,14 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected maintenance state {} for field {}.",
                 building.getColony().getID(), maintenanceState, formatCurrentField()));
             return maintenanceState;
+        }
+
+        final IAIState retryMaintenanceState = nextMissedMaintenanceRetryState(level, module, fields);
+        if (retryMaintenanceState != null)
+        {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() selected maintenance retry state {} for field {}.",
+                building.getColony().getID(), retryMaintenanceState, formatCurrentField()));
+            return retryMaintenanceState;
         }
 
         final IAIState seedState = nextSeedUnsetState(level, module, fields);
@@ -319,6 +332,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return seedState;
         }
 
+        if (!hasMissedMaintenanceToday(level, module, fields))
+        {
+            job.setBiomeLedgerShortage(false);
+        }
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist decide() found no direct work; wandering in building.", building.getColony().getID()));
         return wanderInBuilding();
     }
@@ -501,6 +518,63 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Revisit a field that missed maintenance earlier today only after the ledger can now make progress.
+     *
+     * @param level server level containing managed fields
+     * @param module biome module holding field tracking state
+     * @param fields managed farm fields to scan in priority order
+     * @return next AI state for maintenance roof validation, or null when no missed field is retryable
+     */
+    private IAIState nextMissedMaintenanceRetryState(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
+    {
+        final long colonyDay = building.getColony().getDay();
+        for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
+        {
+            final FarmField field = fields.get(fieldIndex);
+            if (field == null || !needsMaintenanceRetry(level, module, field, colonyDay))
+            {
+                continue;
+            }
+
+            final FieldBiomeAssignment assignment = module.getAssignment(field.getPosition());
+            final BiomeConversionCost maintenanceCost = biomeMaintenanceCost(level, field, assignment, module, maintenanceDiscount());
+            if (!canResolveMaintenanceCostNow(maintenanceCost, safeTemperatureModule(), safeHumidityModule()))
+            {
+                continue;
+            }
+
+            final String fieldDescription = formatField(fieldIndex, field.getPosition());
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist retrying missed maintenance field {} for colony day {}.",
+                building.getColony().getID(), fieldDescription, colonyDay));
+            return beginFieldRoofValidation(field, fieldIndex, horizontalRange(field), HorticulturistState.MAINTAIN_FIELD);
+        }
+
+        return null;
+    }
+
+    /**
+     * Check whether any field has an unresolved missed maintenance visit today.
+     *
+     * @param level server level containing managed fields
+     * @param module biome module holding field tracking state
+     * @param fields managed farm fields to scan
+     * @return true when a missed maintenance notification should remain valid
+     */
+    private boolean hasMissedMaintenanceToday(final ServerLevel level, final GreenhouseBiomeModule module, final List<FarmField> fields)
+    {
+        final long colonyDay = building.getColony().getDay();
+        for (final FarmField field : fields)
+        {
+            if (field != null && needsMaintenanceRetry(level, module, field, colonyDay))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Find the next field whose seed must be cleared because it is invalid for the actual biome.
      *
      * @param level server level containing managed fields
@@ -581,17 +655,12 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return ConversionPreflightResult.ready();
         }
 
-        final IAIState restockState = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
-        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight shortage for field {}; restock state {}.",
-            building.getColony().getID(), formatBlockPos(field.getPosition()), restockState));
-        if (restockState == DECIDE)
+        final RestockShortageResult restockResult = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight shortage for field {}; restock result {} state {}.",
+            building.getColony().getID(), formatBlockPos(field.getPosition()), restockResult.outcome(), restockResult.nextState()));
+        if (restockResult.nextState() != null)
         {
-            return ConversionPreflightResult.skippedField();
-        }
-
-        if (restockState != null)
-        {
-            return ConversionPreflightResult.handle(restockState);
+            return ConversionPreflightResult.handle(restockResult.nextState());
         }
 
         reportConversionLedgerShortage(module, field.getPosition(), shortage, false);
@@ -741,7 +810,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist roof validation failed for field {}: {}.",
                 building.getColony().getID(), formatCurrentField(), formatRoofValidation(roofValidation)));
-            handleRoofValidationFailure(level, roofValidation);
+            handleRoofValidationFailure(roofValidation);
             resetCurrentField();
             return DECIDE;
         }
@@ -757,29 +826,18 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     /**
      * Record and report a roof validation failure for conversion or daily maintenance.
      *
-     * @param level server level containing the field
      * @param roofValidation failed roof validation result
      */
-    private void handleRoofValidationFailure(final ServerLevel level, final RoofValidationResult roofValidation)
+    private void handleRoofValidationFailure(final RoofValidationResult roofValidation)
     {
         if (roofValidationSuccessState == HorticulturistState.MAINTAIN_FIELD && currentField != null)
         {
             final GreenhouseBiomeModule module = safeBiomeModule();
             final BlockPos fieldPosition = currentField.getPosition();
             final long colonyDay = building.getColony().getDay();
-            final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+            module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
             job.setBiomeLedgerShortage(false);
             triggerRoofInteraction(maintenanceRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, true));
-
-            if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
-            {
-                module.revertFieldToNaturalBiome(fieldPosition);
-                trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
-                building.markDirty();
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after missed maintenance since day {}.",
-                    building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay));
-            }
-
             return;
         }
 
@@ -847,13 +905,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final String shortage = ledgerShortage(conversionCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
         {
-            final IAIState restockState = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transform field {} shortage {}; restock state {}.",
-                building.getColony().getID(), formatCurrentField(), shortage, restockState));
-            if (restockState != null)
+            final RestockShortageResult restockResult = restockShortageLedger(conversionCost, temperatureModule, humidityModule);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist transform field {} shortage {}; restock result {} state {}.",
+                building.getColony().getID(), formatCurrentField(), shortage, restockResult.outcome(), restockResult.nextState()));
+            if (restockResult.nextState() != null)
             {
                 resetCurrentField();
-                return restockState;
+                return restockResult.nextState();
             }
 
             reportConversionLedgerShortage(module, fieldPosition, shortage, true);
@@ -924,6 +982,36 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     }
 
     /**
+     * Record an unpaid maintenance visit and tell the player how long remains before natural reversion.
+     *
+     * @param module biome module holding field tracking state
+     * @param fieldPosition field whose maintenance is blocked
+     * @param colonyDay current colony day
+     * @param shortage player-facing shortage description
+     */
+    private void reportMaintenanceLedgerShortage(
+        final GreenhouseBiomeModule module,
+        final BlockPos fieldPosition,
+        final long colonyDay,
+        final String shortage)
+    {
+        module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+        final int daysUntilReversion = module.daysUntilMaintenanceReversion(fieldPosition, colonyDay);
+        job.setBiomeLedgerShortage(true);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist triggering maintenance ledger shortage interaction for field {} with shortage {}; {} days until reversion.",
+            building.getColony().getID(), formatBlockPos(fieldPosition), shortage, daysUntilReversion));
+        worker.getCitizenData().triggerInteraction(new StandardInteraction(
+            Component.translatable(
+                InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE,
+                formatBlockPos(fieldPosition),
+                shortage,
+                daysUntilReversion),
+            Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
+            ChatPriority.BLOCKING));
+
+    }
+
+    /**
      * Walk to the selected field and pay its daily biome maintenance cost.
      *
      * @return the next AI state
@@ -955,33 +1043,16 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final String shortage = ledgerShortage(maintenanceCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
         {
-            final IAIState restockState = restockShortageLedger(maintenanceCost, temperatureModule, humidityModule);
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintenance field {} shortage {}; restock state {}.",
-                building.getColony().getID(), formatCurrentField(), shortage, restockState));
-            if (restockState != null)
+            final RestockShortageResult restockResult = restockShortageLedger(maintenanceCost, temperatureModule, humidityModule);
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist maintenance field {} shortage {}; restock result {} state {}.",
+                building.getColony().getID(), formatCurrentField(), shortage, restockResult.outcome(), restockResult.nextState()));
+            if (restockResult.nextState() != null)
             {
                 resetCurrentField();
-                return restockState;
+                return restockResult.nextState();
             }
 
-            final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
-            job.setBiomeLedgerShortage(true);
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist triggering maintenance ledger shortage interaction for field {} with shortage {}.",
-                building.getColony().getID(), formatBlockPos(fieldPosition), shortage));
-            worker.getCitizenData().triggerInteraction(new StandardInteraction(
-                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE, formatBlockPos(fieldPosition), shortage),
-                Component.translatable(InteractionInitializer.GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
-                ChatPriority.BLOCKING));
-
-            if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
-            {
-                module.revertFieldToNaturalBiome(fieldPosition);
-                trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
-                building.markDirty();
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after maintenance shortage since day {}.",
-                    building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay));
-            }
-
+            reportMaintenanceLedgerShortage(module, fieldPosition, colonyDay, shortage);
             resetCurrentField();
             return DECIDE;
         }
@@ -991,7 +1062,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final OverlayCheckResult overlayCheck = GreenhouseBiomeOverlayService.checkOverlay(level, footprint, climate);
         if (overlayCheck.hadUnloadedChunks())
         {
-            recordMissedMaintenance(level, module, fieldPosition, colonyDay, "unloaded biome chunks");
+            recordMissedMaintenance(module, fieldPosition, colonyDay, "unloaded biome chunks");
             resetCurrentField();
             return DECIDE;
         }
@@ -1007,7 +1078,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 module.getAppliedBiomes());
             if (repairResult.hadUnloadedChunks())
             {
-                recordMissedMaintenance(level, module, fieldPosition, colonyDay, "unloaded biome chunks during repair");
+                recordMissedMaintenance(module, fieldPosition, colonyDay, "unloaded biome chunks during repair");
                 resetCurrentField();
                 return DECIDE;
             }
@@ -1032,30 +1103,19 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     /**
      * Record a missed maintenance visit that is not caused by material shortage.
      *
-     * @param level server level containing the field
      * @param module biome module owning the field
      * @param fieldPosition field anchor position
      * @param colonyDay current colony day
      * @param reason trace-friendly missed maintenance reason
      */
     private void recordMissedMaintenance(
-        final ServerLevel level,
         final GreenhouseBiomeModule module,
         final BlockPos fieldPosition,
         final long colonyDay,
         final String reason)
     {
-        final long firstMissedDay = module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+        module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
         job.setBiomeLedgerShortage(false);
-        if (colonyDay - firstMissedDay >= Config.maintenanceRevertDays.get())
-        {
-            module.revertFieldToNaturalBiome(fieldPosition);
-            trackSeedCleared(module.clearInvalidSeedForActualBiome(level, currentField));
-            building.markDirty();
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist reverted field {} to natural biome after missed maintenance since day {} due to {}.",
-                building.getColony().getID(), formatBlockPos(fieldPosition), firstMissedDay, reason));
-            return;
-        }
 
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist missed maintenance for field {} on day {} due to {}.",
             building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay, reason));
@@ -1157,9 +1217,9 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param cost required climate costs
      * @param temperatureModule temperature ledger module
      * @param humidityModule humidity ledger module
-     * @return next state while stocking can proceed or wait, otherwise null to report the shortage
+     * @return material-handling state when stocking can proceed, otherwise an unresolvable-shortage outcome
      */
-    private IAIState restockShortageLedger(
+    private RestockShortageResult restockShortageLedger(
         final BiomeConversionCost cost,
         final GreenhouseTemperatureModule temperatureModule,
         final GreenhouseHumidityModule humidityModule)
@@ -1169,22 +1229,22 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist found no selected material that can restock cost {}.",
                 building.getColony().getID(), cost));
-            return null;
+            return RestockShortageResult.unresolvable();
         }
 
         currentLedgerTarget = target;
-        job.setBiomeLedgerShortage(false);
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist restocking shortage cost {} with target {}.",
             building.getColony().getID(), cost, formatLedgerTarget(target)));
 
         final IAIState materialState = materialHandlingState(target);
         if (materialState != null)
         {
-            return materialState;
+            job.setBiomeLedgerShortage(false);
+            return RestockShortageResult.handle(materialState);
         }
 
         requestClimateMaterial(target);
-        return DECIDE;
+        return RestockShortageResult.unresolvable();
     }
 
     /**
@@ -1486,6 +1546,53 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             && module.isFieldModifiedFromNatural(level, fieldPosition)
             && !module.wasFieldConvertedOnDay(fieldPosition, colonyDay)
             && !module.wasFieldVisitedOnDay(fieldPosition, colonyDay);
+    }
+
+    /**
+     * Check whether an owned field missed maintenance today and may be retried if materials are ready.
+     *
+     * @param level the server level containing the field
+     * @param module biome module holding field tracking state
+     * @param field field to inspect
+     * @param colonyDay current colony day
+     * @return true when this field is modified, missed maintenance today, and was not later maintained
+     */
+    private static boolean needsMaintenanceRetry(
+        final ServerLevel level,
+        final GreenhouseBiomeModule module,
+        final FarmField field,
+        final long colonyDay)
+    {
+        final BlockPos fieldPosition = field.getPosition();
+        return fieldPosition != null
+            && module.isFieldModifiedFromNatural(level, fieldPosition)
+            && !module.wasFieldConvertedOnDay(fieldPosition, colonyDay)
+            && module.wasFieldMaintenanceMissedOnDay(fieldPosition, colonyDay)
+            && !module.wasFieldMaintainedOnDay(fieldPosition, colonyDay);
+    }
+
+    /**
+     * Check whether a maintenance cost can be paid now, or can be restocked from material already on hand.
+     *
+     * @param cost required climate costs
+     * @param temperatureModule temperature ledger module
+     * @param humidityModule humidity ledger module
+     * @return true when maintenance retry can make progress now
+     */
+    private boolean canResolveMaintenanceCostNow(
+        final BiomeConversionCost cost,
+        final GreenhouseTemperatureModule temperatureModule,
+        final GreenhouseHumidityModule humidityModule)
+    {
+        if (ledgerShortage(cost, temperatureModule, humidityModule).isBlank())
+        {
+            return true;
+        }
+
+        final ClimateLedgerTarget target = findShortageLedgerTarget(cost, temperatureModule, humidityModule);
+        return target != null
+            && (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches)
+                || InventoryUtils.hasItemInProvider(building, target::matches));
     }
 
     /**
@@ -2315,6 +2422,36 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         private static ConversionPreflightResult handle(final IAIState nextState)
         {
             return new ConversionPreflightResult(nextState, false);
+        }
+    }
+
+    /**
+     * Result of trying to make climate ledger progress for a field-blocking shortage.
+     *
+     * @param outcome whether the worker can handle material now or must report an unresolved shortage
+     * @param nextState immediate material-handling state, or null when the shortage cannot be resolved now
+     */
+    private record RestockShortageResult(RestockShortageOutcome outcome, IAIState nextState)
+    {
+        /**
+         * Create a result for a material-handling state that can make ledger progress.
+         *
+         * @param nextState state that handles the available material
+         * @return handling result
+         */
+        private static RestockShortageResult handle(final IAIState nextState)
+        {
+            return new RestockShortageResult(RestockShortageOutcome.HANDLE_MATERIAL, nextState);
+        }
+
+        /**
+         * Create a result for a shortage the worker cannot resolve immediately.
+         *
+         * @return unresolvable-shortage result
+         */
+        private static RestockShortageResult unresolvable()
+        {
+            return new RestockShortageResult(RestockShortageOutcome.UNRESOLVABLE_SHORTAGE, null);
         }
     }
 
