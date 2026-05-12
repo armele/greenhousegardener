@@ -1,8 +1,0 @@
-{
-  "replace": false,
-  "values": [
-    "minecraft:campfire",
-    "minecraft:coal_block",
-    "minecraft:magma_block"
-  ]
-}

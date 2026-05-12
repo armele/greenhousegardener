@@ -96,9 +96,13 @@
   "entity.horticulturist.roof.ratio" : "This field needs more greenhouse roof material before I can convert its climate. Tagged roof coverage: %s%%; required: %s%%.",
   "entity.horticulturist.biome_ledger.shortage" : "I need more climate materials before converting the field at %s. Missing: %s.",
   "entity.horticulturist.biome_maintenance.shortage" : "I need more climate materials to maintain the field at %s. Missing: %s. It will revert to its natural climate in %s colony days if not maintained.",
+  "entity.horticulturist.biome_ledger.unconfigured" : "I need climate adjustment materials configured for these ledgers: %s.",
   "entity.horticulturist.biome_maintenance.noglass" : "I cannot maintain the climate at field %s because the greenhouse roof is missing above %s.",
   "entity.horticulturist.biome_maintenance.roof_ratio" : "I cannot maintain the climate at field %s because the roof does not have enough greenhouse material. Tagged roof coverage: %s%%; required: %s%%.",
+  "entity.horticulturist.biome_contention" : "The fields at %s and %s are close enough together that differing biome conditioning between them is likely to be costly and ineffective. You may want to separate those fields.",
   "entity.horticulturist.field_transformed" : "Field at %s has been converted to %s %s.",
+  "entity.horticulturist.field_transformed.field_with_seed" : "%s (%s)",
+  "entity.horticulturist.field_transformed.no_seed" : "No seed",
   "com.greenhousegardener.biome_maintenance.warning.field_crop" : "%s (%s)",
   "com.greenhousegardener.biome_maintenance.warning" : "Field at %s missed climate maintenance. It will revert to its natural climate in %s colony days if not maintained.",
   "greenhousegardener.research.effects.blockhutgreenhouse.description": "Allows building of the Greenhouse.",
@@ -112,5 +116,6 @@
   "greenhousegardener.configuration.climatecontrol" : "How many climate control units (CCU) are produced by tagged items?",
   "greenhousegardener.configuration.conversioncost" : "How many CCU are needed to convert and maintain a greenhouse?",
   "greenhousegardener.configuration.notifications" : "Notification Settings",
+  "greenhousegardener.configuration.maintenance" : "Maintenance Settings",
   "greenhousegardener.configuration.other" : "Other settings"
 }

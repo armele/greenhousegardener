@@ -1,6 +1,7 @@
 package com.deathfrog.greenhousegardener.core.world.biomeservice;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -232,6 +233,37 @@ public final class GreenhouseBiomeOverlayService
     }
 
     /**
+     * Restore natural biomes across one field footprint while preserving cells still claimed by other fields.
+     *
+     * @param level the server level containing the target chunks
+     * @param footprint the field footprint being restored
+     * @param protectedFootprints other maintained field footprints whose cells must not be restored
+     * @param naturalBiomes persisted biome cells captured before this service first changed them
+     * @param appliedBiomes persisted biome cells last written by this service
+     * @return a summary of the restoration work performed
+     */
+    public static OverlayResult restoreOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final Collection<FieldBiomeFootprint> protectedFootprints,
+        final Map<BlockPos, ResourceLocation> naturalBiomes,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
+        if (level == null || footprint == null || naturalBiomes == null || appliedBiomes == null)
+        {
+            return OverlayResult.EMPTY;
+        }
+
+        final List<BoundingBox> protectedRegions = protectedFootprints == null
+            ? List.of()
+            : protectedFootprints.stream()
+                .filter(other -> other != null && other.paddedBiomeRegion() != null)
+                .map(FieldBiomeFootprint::paddedBiomeRegion)
+                .toList();
+        return restoreOverlay(level, footprint.paddedBiomeRegion(), protectedRegions, naturalBiomes, appliedBiomes);
+    }
+
+    /**
      * Restore all biome cells currently tracked as applied by this service.
      *
      * @param level the server level containing the target chunks
@@ -416,9 +448,12 @@ public final class GreenhouseBiomeOverlayService
         final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
         if (chunkSelection.chunks().isEmpty())
         {
-            return new OverlayCheckResult(false, chunkSelection.hadUnloadedChunks());
+            return new OverlayCheckResult(0, 0, 0, chunkSelection.hadUnloadedChunks());
         }
 
+        int loadedCells = 0;
+        int matchingCells = 0;
+        int mismatchedCells = 0;
         for (final ChunkAccess chunk : chunkSelection.chunks())
         {
             final int minQuartX = Math.max(QuartPos.fromBlock(targetRegion.minX()), QuartPos.fromBlock(chunk.getPos().getMinBlockX()));
@@ -438,23 +473,38 @@ public final class GreenhouseBiomeOverlayService
                             continue;
                         }
 
+                        loadedCells++;
                         final Optional<ResourceLocation> currentBiomeId = holderId(chunk.getNoiseBiome(quartX, quartY, quartZ));
                         if (currentBiomeId.isEmpty() || !targetBiomeId.equals(currentBiomeId.get()))
                         {
-                            return new OverlayCheckResult(true, chunkSelection.hadUnloadedChunks());
+                            mismatchedCells++;
+                        }
+                        else
+                        {
+                            matchingCells++;
                         }
                     }
                 }
             }
         }
 
-        return new OverlayCheckResult(false, chunkSelection.hadUnloadedChunks());
+        return new OverlayCheckResult(loadedCells, matchingCells, mismatchedCells, chunkSelection.hadUnloadedChunks());
+    }
+
+    private static OverlayResult restoreOverlay(
+        final ServerLevel level,
+        final BoundingBox targetRegion,
+        final Map<BlockPos, ResourceLocation> naturalBiomes,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
+        return restoreOverlay(level, targetRegion, List.of(), naturalBiomes, appliedBiomes);
     }
 
     @SuppressWarnings("null")
     private static OverlayResult restoreOverlay(
         final ServerLevel level,
         final BoundingBox targetRegion,
+        final Collection<BoundingBox> protectedRegions,
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
@@ -474,6 +524,11 @@ public final class GreenhouseBiomeOverlayService
                 if (cellPos == null) return currentBiome;
 
                 if (!targetRegion.isInside(cellPos))
+                {
+                    return currentBiome;
+                }
+
+                if (isProtectedCell(cellPos, protectedRegions))
                 {
                     return currentBiome;
                 }
@@ -503,6 +558,11 @@ public final class GreenhouseBiomeOverlayService
         });
         resendBiomes(level, chunkSelection.chunks());
         return new OverlayResult(restoredCells.size(), chunkSelection.chunks().size(), chunkSelection.hadUnloadedChunks());
+    }
+
+    private static boolean isProtectedCell(final @Nonnull BlockPos cellPos, final Collection<BoundingBox> protectedRegions)
+    {
+        return protectedRegions != null && protectedRegions.stream().anyMatch(region -> region != null && region.isInside(cellPos));
     }
 
     private static ChunkSelection loadedChunks(final ServerLevel level, final BoundingBox targetRegion)

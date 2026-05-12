@@ -25,6 +25,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * Window for assigning climate settings to each managed greenhouse field.
@@ -42,6 +43,8 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     private static final String FIELD_OWNED = "owned";
     private static final String FIELD_TEMPERATURE = "temp";
     private static final String FIELD_HUMIDITY = "humidity";
+    @SuppressWarnings("null")
+    private static final ItemStack UNSET_FIELD_SEED_ICON = new ItemStack(Items.WOODEN_HOE);
     private final ScrollingList fieldList;
     private boolean updatingFields = false;
 
@@ -252,7 +255,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
             ownedCheckbox.setHandler(button -> setOwnership(fieldIndex, ownedCheckbox.isChecked()));
 
             final ItemIcon seedIcon = row.findPaneOfTypeByID(FIELD_SEED, ItemIcon.class);
-            seedIcon.setItem(field.seed().isEmpty() ? ItemStack.EMPTY : field.seed());
+            seedIcon.setItem(field.seed().isEmpty() ? UNSET_FIELD_SEED_ICON : field.seed());
 
             addPositionTooltip(tempDropdown, field);
             addPositionTooltip(humidityDropdown, field);

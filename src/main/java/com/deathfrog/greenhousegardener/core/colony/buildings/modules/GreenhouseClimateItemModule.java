@@ -11,8 +11,8 @@ import javax.annotation.Nonnull;
 
 import org.jetbrains.annotations.NotNull;
 
-import com.deathfrog.greenhousegardener.Config;
-import com.deathfrog.greenhousegardener.core.ModTags;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemValueListener;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.BiomeConversionCost;
 import com.minecolonies.api.colony.buildings.modules.AbstractBuildingModule;
 import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
 import com.minecolonies.api.crafting.ItemStorage;
@@ -24,8 +24,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -38,7 +36,6 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     private static final String TAG_PROTECTED_QUANTITY = "protectedQuantity";
     private static final String TAG_LEDGER_INCREASE = "ledgerIncrease";
     private static final String TAG_LEDGER_DECREASE = "ledgerDecrease";
-    public static final int DEFAULT_LEDGER_TARGET = 500;
 
     private final Map<ClimateItemList, Set<ItemStorage>> items = new EnumMap<>(ClimateItemList.class);
     private final Map<ClimateItemList, Integer> ledgerBalances = new EnumMap<>(ClimateItemList.class);
@@ -74,7 +71,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     public void addItem(final ClimateItemList list, final ItemStorage item)
     {
         final ItemStorage normalizedItem = normalizedClimateItem(item);
-        if (normalizedItem.getItemStack().isEmpty() || !normalizedItem.getItemStack().is(getAllowedTag(list)))
+        if (!hasClimateValue(list, normalizedItem.getItemStack()))
         {
             return;
         }
@@ -95,14 +92,6 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
         items.get(list).remove(normalizedClimateItem(item));
         markDirty();
     }
-
-    /**
-     * Get the item tag that controls which items can be selected for a list.
-     *
-     * @param list the target increase or decrease list
-     * @return the item tag allowed for that list
-     */
-    public abstract @Nonnull TagKey<Item> getAllowedTag(ClimateItemList list);
 
     /**
      * Get the climate modification type represented by one side of this module.
@@ -132,7 +121,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int getLedgerTargetBalance()
     {
-        return DEFAULT_LEDGER_TARGET;
+        return BiomeConversionCost.DEFAULT_LEDGER_TARGET;
     }
 
     /**
@@ -180,7 +169,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int getLedgerRequestCount(final ClimateItemList list, final ItemStack stack, final int targetBalance)
     {
-        final int unit = climateModificationUnit(stack);
+        final int unit = climateModificationUnit(getModificationType(list), stack);
         if (unit <= 0 || !isLedgerUnderTarget(list, targetBalance))
         {
             return 0;
@@ -213,12 +202,12 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      */
     public int ledgerStack(final ClimateItemList list, final ItemStack stack, final int targetBalance)
     {
-        if (stack.isEmpty() || !stack.is(getAllowedTag(list)) || !isLedgerUnderTarget(list, targetBalance))
+        if (!hasClimateValue(list, stack) || !isLedgerUnderTarget(list, targetBalance))
         {
             return 0;
         }
 
-        final int value = climateModificationUnit(stack) * stack.getCount();
+        final int value = climateModificationUnit(getModificationType(list), stack) * stack.getCount();
         if (value <= 0)
         {
             return 0;
@@ -255,38 +244,38 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
     }
 
     /**
-     * Resolve the climate modification unit for a selected item from its tier tag.
+     * Check whether a stack can contribute CCU to one side of this module.
+     *
+     * @param list the target increase or decrease list
+     * @param stack selected climate item
+     * @return true when the item has a datapack-defined value for this list
+     */
+    public boolean hasClimateValue(final ClimateItemList list, final ItemStack stack)
+    {
+        return GreenhouseClimateItemValueListener.INSTANCE.hasValue(getModificationType(list), stack);
+    }
+
+    /**
+     * Resolve the climate modification unit for a selected item and climate direction.
+     *
+     * @param type climate modification type
+     * @param stack selected climate item
+     * @return unit value contributed by one item
+     */
+    public static int climateModificationUnit(final ClimateModificationType type, final ItemStack stack)
+    {
+        return GreenhouseClimateItemValueListener.INSTANCE.getValue(type, stack);
+    }
+
+    /**
+     * Resolve the best climate modification unit for a selected item across all climate directions.
      *
      * @param stack selected climate item
      * @return unit value contributed by one item
      */
     public static int climateModificationUnit(final ItemStack stack)
     {
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_HIGH)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_HIGH))
-        {
-            return Config.climateControlUnitsHigh.get();
-        }
-
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_MEDIUM)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_MEDIUM))
-        {
-            return Config.climateControlUnitsMedium.get();
-        }
-
-        if (stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_INCREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_TEMP_DECREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE_LOW)
-            || stack.is(ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE_LOW))
-        {
-            return Config.climateControlUnitsLow.get();
-        }
-
-        return 0;
+        return GreenhouseClimateItemValueListener.INSTANCE.getBestValue(stack);
     }
 
     /**

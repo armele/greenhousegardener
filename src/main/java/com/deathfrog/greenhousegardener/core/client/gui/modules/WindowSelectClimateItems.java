@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BiConsumer;
+import java.util.function.ToIntFunction;
 import java.util.function.Predicate;
 
 import org.apache.commons.lang3.StringUtils;
@@ -33,7 +34,7 @@ import static com.minecolonies.api.util.constant.WindowConstants.BUTTON_SELECT;
 import static com.minecolonies.api.util.constant.WindowConstants.NAME_LABEL;
 
 /**
- * Selector dialog for choosing climate control items from data-pack driven item tags.
+ * Selector dialog for choosing climate control items from data-pack driven values.
  */
 public class WindowSelectClimateItems extends AbstractWindowSkeleton
 {
@@ -41,28 +42,36 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
     private static final String BUTTON_CANCEL = "cancel";
     private static final int DEFAULT_PROTECTED_ITEMS = 0;
     private static final String PROTECTED_QUANTITY_TOOLTIP = "com.greenhousegardener.core.gui.climate.quantity.protected.tooltip";
+    private static final String RESOURCE_CCU = "resourceCcu";
     private static final int WHITE = Color.getByName("white", 0);
 
     private final List<ItemStack> allItems = new ArrayList<>();
     private final ScrollingList resourceList;
     private final Predicate<ItemStack> test;
+    private final ToIntFunction<ItemStack> valueResolver;
     private final BiConsumer<ItemStack, Integer> consumer;
 
     private String filter = "";
     private int tick;
 
     /**
-     * Create a selector window for tag-filtered greenhouse climate items.
+     * Create a selector window for value-filtered greenhouse climate items.
      *
      * @param origin window that opened this selector
      * @param test predicate used to filter selectable items
+     * @param valueResolver resolver for the CCU value displayed beside each item
      * @param consumer callback receiving the selected item and protected quantity
      */
-    public WindowSelectClimateItems(final BOWindow origin, final Predicate<ItemStack> test, final BiConsumer<ItemStack, Integer> consumer)
+    public WindowSelectClimateItems(
+        final BOWindow origin,
+        final Predicate<ItemStack> test,
+        final ToIntFunction<ItemStack> valueResolver,
+        final BiConsumer<ItemStack, Integer> consumer)
     {
         super(origin, ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "gui/windowselectclimateitems.xml"));
         this.resourceList = findPaneOfTypeByID("resources", ScrollingList.class);
         this.test = test;
+        this.valueResolver = valueResolver;
         this.consumer = consumer;
 
         registerButton(BUTTON_DONE, this::doneClicked);
@@ -233,6 +242,7 @@ public class WindowSelectClimateItems extends AbstractWindowSkeleton
                 final Text resourceLabel = rowPane.findPaneOfTypeByID("resourceName", Text.class);
                 resourceLabel.setText(stack.getHoverName());
                 resourceLabel.setColors(WHITE);
+                rowPane.findPaneOfTypeByID(RESOURCE_CCU, Text.class).setText(Component.literal(String.valueOf(valueResolver.applyAsInt(stack)) + ""));
                 rowPane.findPaneOfTypeByID("resourceIcon", ItemIcon.class).setItem(stack);
             }
         });

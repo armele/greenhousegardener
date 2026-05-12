@@ -1,8 +1,0 @@
-{
-  "replace": false,
-  "values": [
-    "minecraft:wet_sponge",
-    "minecraft:water_bucket",
-    "minecolonies:large_water_bottle"
-  ]
-}

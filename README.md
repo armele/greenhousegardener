@@ -25,7 +25,7 @@ The greenhouse capacity is:
 ### Modules
 The building module UI supports selecting the target biome conditions for each maintained field slot and designating what blocks will be used for biome conditioning. 
 
-Biome conditioning takes place along two axis - temperature and humdity. Eligible blocks for these four changes (temperature up, temperature down, humdity up, humidity down) are tag-driven, and selectable in the module UI.
+Biome conditioning takes place along two axes: temperature and humidity. Eligible blocks for these four changes (temperature up, temperature down, humidity up, humidity down) are defined by datapack CCU value files, and selectable in the module UI.
 
 ### Field Logic
 The farmer continues to work climate controlled fields as normal.  To designate a field as climate controlled:
@@ -117,6 +117,15 @@ Avoid sealed display-only greenhouses where the worker can see the field but can
 
 Climate-changed fields require maintenance. If the worker cannot maintain a field because the roof is invalid or climate materials are unavailable, the field can eventually revert to its natural biome. The default missed-maintenance window is 5 colony days.
 
+When a field reverts to its natural biome the seed will be unset from that farm field.
+
+The horticulturist will not try to do anything with a reverted field until the next colony day.
+
+### Field Positioning
+
+The horticulturist doesn't have the technology to accomplish precision biome modification. There's always a bit of area around the field that will be affected by this conditioning as well.  This means if you have two fields with different conditioned biomes too close together, your field biomes will "fight" with eachother - causing wasted CCU and ineffective crop growth.  Your horticulturist will warn you of this situation.  To avoid it, make sure your conditioned fields are about 8 blocks apart, at least - or share the same temperature and humidity settings.
+
+## Style Guidance
 For reliable schematics:
 
 - Include enough storage access for climate materials.
@@ -133,6 +142,71 @@ For reliable schematics:
 - At least 75 percent of crop-footprint columns use `greenhousegardener:greenhouse_roof` tagged material, unless the pack config changes the requirement.
 - Fields that may have different climates are separated by at least 4 blocks between crop footprints.
 - Field footprint, roof footprint, and visible room design all agree, so players can tell what area is being conditioned.
+
+## Datapack Customization for Modpack Authors
+
+Greenhouse Gardener exposes climate materials through datapack JSON. Pack authors can add new files instead of editing the mod's built-in data.
+
+### Climate CCU Values
+
+Climate Control Unit values live in:
+
+```text
+data/<namespace>/greenhouse_climate_items/*.json
+```
+
+Each file may define any of the four climate directions. Values are CCU per consumed item.
+
+```json
+{
+  "replace": false,
+  "temp_up": {
+    "minecraft:coal": 18,
+    "minecraft:lava_bucket": 220
+  },
+  "temp_down": {
+    "minecraft:snowball": 1,
+    "minecraft:blue_ice": 220
+  },
+  "humid_up": {
+    "minecraft:water_bucket": 55
+  },
+  "humid_down": {
+    "#minecraft:wool": 11,
+    "minecraft:sponge": 55
+  }
+}
+```
+
+The direction keys are:
+
+- `temp_up`: heating materials.
+- `temp_down`: cooling materials.
+- `humid_up`: humidifying materials.
+- `humid_down`: drying materials.
+
+Object keys may be item ids such as `minecraft:blue_ice`, or item tags prefixed with `#`, such as `#minecraft:wool`. Direct item values override tag values for that item. If multiple tags match an item, the highest matching tag value is used.
+
+Files are merged across namespaces and packs. Use `"replace": false` or omit it to add or override individual entries. Use `"replace": true` only when intentionally replacing all previously loaded climate item values.
+
+### Climate Remainders
+
+Climate remainders live in:
+
+```text
+data/<namespace>/greenhouse_climate_remainders/*.json
+```
+
+These define the item returned after a climate material is consumed, for items whose normal crafting remainder does not already handle it.
+
+```json
+{
+  "consumed": "minecraft:kelp",
+  "remainder": "minecraft:dried_kelp"
+}
+```
+
+Built-in item crafting remainders are used automatically before this datapack mapping is checked. For example, bucket-like items that already expose a crafting remainder do not need a custom remainder file.
 
 ## Dependencies
 Minecraft version 1.21.1

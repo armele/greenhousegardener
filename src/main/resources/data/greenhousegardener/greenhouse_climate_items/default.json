@@ -1,0 +1,39 @@
+{
+  "replace": false,
+  "temp_up": {
+    "minecraft:torch": 4,
+    "minecraft:blaze_powder": 13,
+    "minecraft:charcoal": 18,
+    "minecraft:campfire": 35,
+    "minecraft:magma_block": 55,
+    "minecraft:coal_block": 176,
+    "minecraft:lava_bucket": 220
+  },
+  "temp_down": {
+    "minecraft:snowball": 1,
+    "minecraft:ice": 3,
+    "minecraft:snow_block": 4,
+    "minecraft:packed_ice": 24,
+    "minecraft:powder_snow_bucket": 55,
+    "minecraft:blue_ice": 220
+  },
+  "humid_up": {
+    "minecraft:kelp": 11,
+    "minecraft:seagrass": 11,
+    "minecraft:wet_sponge": 55,
+    "minecraft:water_bucket": 55,
+    "minecolonies:large_water_bottle": 55,
+    "minecraft:heart_of_the_sea": 220,
+    "minecraft:conduit": 220
+  },
+  "humid_down": {
+    "minecraft:sand": 11,
+    "#minecraft:wool": 11,
+    "minecraft:dead_bush": 11,
+    "minecraft:sponge": 55,
+    "minecraft:sandstone": 55,
+    "minecraft:cactus": 55,
+    "minecraft:red_sand": 220,
+    "minecraft:nether_wart": 220
+  }
+}

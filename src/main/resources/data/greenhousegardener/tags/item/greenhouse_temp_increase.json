@@ -1,8 +1,0 @@
-{
-  "replace": false,
-  "values": [
-    "#greenhousegardener:greenhouse_temp_increase_low",
-    "#greenhousegardener:greenhouse_temp_increase_medium",
-    "#greenhousegardener:greenhouse_temp_increase_high"
-  ]
-}

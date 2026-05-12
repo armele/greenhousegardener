@@ -36,6 +36,7 @@ public final class ModBuildingsInitializer
             greenhouseBuilder.addBuildingModuleProducer(BuildingModules.BIOME_MODULE);
             greenhouseBuilder.addBuildingModuleProducer(BuildingModules.TEMPERATURE_MODULE);
             greenhouseBuilder.addBuildingModuleProducer(BuildingModules.HUMIDITY_MODULE);
+            greenhouseBuilder.addBuildingModuleProducer(com.minecolonies.core.colony.buildings.modules.BuildingModules.MIN_STOCK);  
             greenhouseBuilder.addBuildingModuleProducer(com.minecolonies.core.colony.buildings.modules.BuildingModules.STATS_MODULE);  
 
             ModBuildings.greenhouse = greenhouseBuilder.createBuildingEntry();

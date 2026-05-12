@@ -9,6 +9,7 @@ public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, 
     public static final int COUNTER_TRIGGER = 0;
     protected int noGlassCounter = 0;
     protected boolean biomeLedgerShortage = false;
+    protected boolean biomeContentionWarning = false;
 
     public JobsHorticulturist(ICitizenData entity)
     {
@@ -70,5 +71,25 @@ public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, 
     public void setBiomeLedgerShortage(final boolean shortage)
     {
         biomeLedgerShortage = shortage;
+    }
+
+    /**
+     * Check if a biome-contention interaction is still valid.
+     *
+     * @return true when managed fields currently have conflicting nearby biome conditioning
+     */
+    public boolean checkBiomeContentionWarning()
+    {
+        return biomeContentionWarning;
+    }
+
+    /**
+     * Update whether managed fields currently have conflicting nearby biome conditioning.
+     *
+     * @param warning true when a field-contention warning should remain visible
+     */
+    public void setBiomeContentionWarning(final boolean warning)
+    {
+        biomeContentionWarning = warning;
     }
 }

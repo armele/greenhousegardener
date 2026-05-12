@@ -1,7 +1,7 @@
 package com.deathfrog.greenhousegardener.core.client.gui.modules;
 
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseHumidityModuleView;
-import com.deathfrog.greenhousegardener.core.ModTags;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateModificationType;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage.ClimateModuleType;
 
 import net.minecraft.network.chat.Component;
@@ -18,7 +18,7 @@ public class WindowHumidityModule extends WindowClimateItemModule<GreenhouseHumi
      */
     public WindowHumidityModule(final GreenhouseHumidityModuleView moduleView)
     {
-        super(moduleView, ClimateModuleType.HUMIDITY, ModTags.ITEMS.GREENHOUSE_HUMIDITY_INCREASE, ModTags.ITEMS.GREENHOUSE_HUMIDITY_DECREASE);
+        super(moduleView, ClimateModuleType.HUMIDITY, ClimateModificationType.HUMID, ClimateModificationType.DRY);
         setTitle(Component.translatable("com.greenhousegardener.core.gui.modules.humidity_controls"));
         setIncreaseTitle(Component.translatable("com.greenhousegardener.core.gui.climate.humidity.humid"));
         setDecreaseTitle(Component.translatable("com.greenhousegardener.core.gui.climate.humidity.drier"));

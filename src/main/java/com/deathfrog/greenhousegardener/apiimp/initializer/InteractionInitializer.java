@@ -14,6 +14,8 @@ public class InteractionInitializer
     public static final String GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO = "entity.horticulturist.biome_maintenance.roof_ratio";
     public static final String GREENHOUSE_BIOME_LEDGER_SHORTAGE      = "entity.horticulturist.biome_ledger.shortage";
     public static final String GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE = "entity.horticulturist.biome_maintenance.shortage";
+    public static final String GREENHOUSE_BIOME_LEDGER_UNCONFIGURED  = "entity.horticulturist.biome_ledger.unconfigured";
+    public static final String GREENHOUSE_BIOME_CONTENTION           = "entity.horticulturist.biome_contention";
 
     public static void injectInteractionHandlers() 
     {
@@ -29,5 +31,9 @@ public class InteractionInitializer
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
+        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_LEDGER_UNCONFIGURED),
+          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
+        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_CONTENTION),
+          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeContentionWarning());
     }
 }

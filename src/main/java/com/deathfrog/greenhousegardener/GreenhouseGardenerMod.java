@@ -10,6 +10,7 @@ import com.deathfrog.greenhousegardener.apiimp.initializer.ModJobsInitializer;
 import com.deathfrog.greenhousegardener.apiimp.initializer.TileEntityInitializer;
 import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemValueListener;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
 import com.deathfrog.greenhousegardener.core.items.ModCreativeTabs;
 import com.deathfrog.greenhousegardener.core.items.ModItems;
@@ -82,6 +83,7 @@ public class GreenhouseGardenerMod {
     @SuppressWarnings("null")
     @SubscribeEvent
     public void onAddReloadListener(final AddReloadListenerEvent event) {
+        event.addListener(GreenhouseClimateItemValueListener.INSTANCE);
         event.addListener(GreenhouseClimateRemainderListener.INSTANCE);
     }
 

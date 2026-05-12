@@ -6,6 +6,8 @@ import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseClimateItemModuleView;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateModificationType;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemValueListener;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage.ClimateItemAction;
 import com.deathfrog.greenhousegardener.core.network.SetGreenhouseClimateItemMessage.ClimateModuleType;
@@ -19,8 +21,6 @@ import com.minecolonies.core.client.gui.AbstractModuleWindow;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -35,8 +35,8 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
     private static final String ITEM_CLIMATE_MODIFICATION_UNIT = "itemClimateModificationUnit";
 
     private final ClimateModuleType moduleType;
-    private final TagKey<Item> increaseTag;
-    private final TagKey<Item> decreaseTag;
+    private final ClimateModificationType increaseType;
+    private final ClimateModificationType decreaseType;
     private final ScrollingList increaseList;
     private final ScrollingList decreaseList;
 
@@ -45,19 +45,19 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
      *
      * @param moduleView module view backing the window
      * @param moduleType temperature or humidity module type
-     * @param increaseTag item tag used by the top selector
-     * @param decreaseTag item tag used by the bottom selector
+     * @param increaseType climate value type used by the top selector
+     * @param decreaseType climate value type used by the bottom selector
      */
     protected WindowClimateItemModule(
         final T moduleView,
         final ClimateModuleType moduleType,
-        final TagKey<Item> increaseTag,
-        final TagKey<Item> decreaseTag)
+        final ClimateModificationType increaseType,
+        final ClimateModificationType decreaseType)
     {
         super(moduleView, ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "gui/layouthuts/layoutclimateitemmodule.xml"));
         this.moduleType = moduleType;
-        this.increaseTag = increaseTag;
-        this.decreaseTag = decreaseTag;
+        this.increaseType = increaseType;
+        this.decreaseType = decreaseType;
         this.increaseList = window.findPaneOfTypeByID("increaseList", ScrollingList.class);
         this.decreaseList = window.findPaneOfTypeByID("decreaseList", ScrollingList.class);
 
@@ -114,10 +114,14 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
      */
     private void addItem(final ClimateItemList list)
     {
-        final TagKey<Item> tag = list == ClimateItemList.INCREASE ? increaseTag : decreaseTag;
-        new WindowSelectClimateItems(this, stack -> tag != null && stack.is(tag), (stack, quantity) -> {
-            new SetGreenhouseClimateItemMessage(buildingView.getPosition(), moduleType.ordinal(), list.ordinal(), ClimateItemAction.ADD.ordinal(), stack, quantity).sendToServer();
-        }).open();
+        final ClimateModificationType type = modificationType(list);
+        new WindowSelectClimateItems(
+            this,
+            stack -> GreenhouseClimateItemValueListener.INSTANCE.hasValue(type, stack),
+            stack -> GreenhouseClimateItemModule.climateModificationUnit(type, stack),
+            (stack, quantity) -> {
+                new SetGreenhouseClimateItemMessage(buildingView.getPosition(), moduleType.ordinal(), list.ordinal(), ClimateItemAction.ADD.ordinal(), stack, quantity).sendToServer();
+            }).open();
         updateLists();
     }
 
@@ -147,8 +151,8 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
      */
     private void updateLists()
     {
-        updateList(increaseList, moduleView.getIncreaseItems());
-        updateList(decreaseList, moduleView.getDecreaseItems());
+        updateList(increaseList, moduleView.getIncreaseItems(), increaseType);
+        updateList(decreaseList, moduleView.getDecreaseItems(), decreaseType);
     }
 
     /**
@@ -156,8 +160,9 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
      *
      * @param scrollingList list control to update
      * @param items selected items to display
+     * @param type climate modification type displayed in this list
      */
-    private static void updateList(final ScrollingList scrollingList, final List<ItemStorage> items)
+    private static void updateList(final ScrollingList scrollingList, final List<ItemStorage> items, final ClimateModificationType type)
     {
         scrollingList.enable();
         scrollingList.show();
@@ -173,13 +178,18 @@ public abstract class WindowClimateItemModule<T extends GreenhouseClimateItemMod
             public void updateElement(final int index, final Pane rowPane)
             {
                 final ItemStack stack = items.get(index).getItemStack().copy();
-                String cmuLabel = String.valueOf(GreenhouseClimateItemModule.climateModificationUnit(stack));
+                String cmuLabel = String.valueOf(GreenhouseClimateItemModule.climateModificationUnit(type, stack));
                 stack.setCount(1);
                 rowPane.findPaneOfTypeByID(ITEM_NAME, Text.class).setText(stack.getHoverName());
                 rowPane.findPaneOfTypeByID(ITEM_CLIMATE_MODIFICATION_UNIT, Text.class).setText(Component.literal(cmuLabel == null ? "None" : cmuLabel));
                 rowPane.findPaneOfTypeByID(ITEM_ICON, ItemIcon.class).setItem(stack);
             }
         });
+    }
+
+    private ClimateModificationType modificationType(final ClimateItemList list)
+    {
+        return list == ClimateItemList.INCREASE ? increaseType : decreaseType;
     }
 
 }
