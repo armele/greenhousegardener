@@ -767,6 +767,31 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /**
+     * Check whether a modified field should emit ambient conditioning particles.
+     *
+     * <p>Particles are only visualized while the field still has an active, tracked greenhouse overlay. This keeps
+     * particle effects aligned with the real overlay lifecycle rather than only the configured target climate.</p>
+     *
+     * @param level server level containing biome data
+     * @param field farm field to inspect
+     * @param colonyDay current colony day
+     * @return true when the field currently has active conditioning effects to show
+     */
+    public boolean shouldEmitConditioningParticles(final ServerLevel level, final FarmField field, final long colonyDay)
+    {
+        if (level == null || field == null || field.getPosition() == null)
+        {
+            return false;
+        }
+
+        final BlockPos fieldPosition = field.getPosition();
+        return isFieldModifiedFromNatural(level, fieldPosition)
+            && hasTrackedOverlay(field)
+            && isFieldConditioningActiveForDay(fieldPosition, colonyDay)
+            && !wasFieldRevertedOnDay(fieldPosition, colonyDay);
+    }
+
+    /**
      * Get how many colony days remain before the field reverts to its natural biome.
      *
      * @param fieldPosition position of the farm field anchor
@@ -978,7 +1003,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
-        field.setSeed(ItemStack.EMPTY);
+        clearFieldSeed(field);
         markDirty();
         return true;
     }
@@ -1004,7 +1029,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
-        field.setSeed(ItemStack.EMPTY);
+        clearFieldSeed(field);
         markDirty();
         return true;
     }
@@ -1429,8 +1454,19 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
-        field.setSeed(ItemStack.EMPTY);
+        clearFieldSeedAndResetStage(field);
         return true;
+    }
+
+    /**
+     * Clear the selected crop and restart the field's work cycle.
+     *
+     * @param field field whose selected crop should be removed
+     */
+    private void clearFieldSeedAndResetStage(final FarmField field)
+    {
+        field.setSeed(ItemStack.EMPTY);
+        field.setFieldStage(FarmField.Stage.EMPTY);
     }
 
     /**
