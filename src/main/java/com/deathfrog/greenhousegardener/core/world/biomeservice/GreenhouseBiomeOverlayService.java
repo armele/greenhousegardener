@@ -130,7 +130,7 @@ public final class GreenhouseBiomeOverlayService
 
         final Holder.Reference<Biome> targetBiome = biomeHolder(level, targetBiomeId);
         final BoundingBox targetRegion = footprint.paddedBiomeRegion();
-        final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
+        final ChunkSelection chunkSelection = selectedChunks(level, targetRegion, true);
         if (chunkSelection.chunks().isEmpty())
         {
             return OverlayResult.EMPTY;
@@ -445,7 +445,7 @@ public final class GreenhouseBiomeOverlayService
         }
 
         final BoundingBox targetRegion = footprint.paddedBiomeRegion();
-        final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
+        final ChunkSelection chunkSelection = selectedChunks(level, targetRegion, false);
         if (chunkSelection.chunks().isEmpty())
         {
             return new OverlayCheckResult(0, 0, 0, chunkSelection.hadUnloadedChunks());
@@ -508,7 +508,7 @@ public final class GreenhouseBiomeOverlayService
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        final ChunkSelection chunkSelection = loadedChunks(level, targetRegion);
+        final ChunkSelection chunkSelection = selectedChunks(level, targetRegion, true);
         if (chunkSelection.chunks().isEmpty())
         {
             return OverlayResult.EMPTY;
@@ -565,7 +565,15 @@ public final class GreenhouseBiomeOverlayService
         return protectedRegions != null && protectedRegions.stream().anyMatch(region -> region != null && region.isInside(cellPos));
     }
 
-    private static ChunkSelection loadedChunks(final ServerLevel level, final BoundingBox targetRegion)
+    /**
+     * Select chunks intersecting a biome operation region.
+     *
+     * @param level level containing the chunks
+     * @param targetRegion block-space biome operation bounds
+     * @param loadMissing true to synchronously load missing chunks for a complete write operation
+     * @return selected chunks and whether any required chunk was unavailable
+     */
+    private static ChunkSelection selectedChunks(final ServerLevel level, final BoundingBox targetRegion, final boolean loadMissing)
     {
         final List<ChunkAccess> chunks = new ArrayList<>();
         boolean hadUnloadedChunks = false;
@@ -574,7 +582,7 @@ public final class GreenhouseBiomeOverlayService
             for (int chunkX = SectionPos.blockToSectionCoord(targetRegion.minX()); chunkX <= SectionPos.blockToSectionCoord(targetRegion.maxX()); chunkX++)
             {
                 @SuppressWarnings("null")
-                final ChunkAccess chunk = level.getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
+                final ChunkAccess chunk = level.getChunk(chunkX, chunkZ, ChunkStatus.FULL, loadMissing);
                 if (chunk != null)
                 {
                     chunks.add(chunk);
