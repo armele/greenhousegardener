@@ -1467,6 +1467,32 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         field.setSeed(ItemStack.EMPTY);
         field.setFieldStage(FarmField.Stage.EMPTY);
+        unassignFieldFromFarmer(field);
+    }
+
+    /**
+     * Release a now-unseeded field from its farmer assignment.
+     *
+     * @param field field whose farmer assignment should be cleared
+     */
+    private void unassignFieldFromFarmer(final FarmField field)
+    {
+        if (field.getBuildingId() == null || building == null || building.getColony() == null)
+        {
+            return;
+        }
+
+        final IBuilding assignedBuilding = building.getColony().getServerBuildingManager().getBuilding(field.getBuildingId());
+        if (assignedBuilding == null)
+        {
+            return;
+        }
+
+        final var farmerFieldsModule = assignedBuilding.getModule(com.minecolonies.core.colony.buildings.modules.BuildingModules.FARMER_FIELDS);
+        if (farmerFieldsModule != null)
+        {
+            farmerFieldsModule.freeExtension(field);
+        }
     }
 
     /**
