@@ -33,6 +33,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 public final class ModCommands
 {
     public static final String TRACE_HORTICULTURIST = "horticulturist";
+    public static final String TRACE_BIOME_MODULE = "biomemodule";
 
     private static final String CMD_ROOT = "mcgg";
     private static final String CMD_TRACE = "trace";
@@ -83,7 +84,7 @@ public final class ModCommands
 
     public static List<String> getTraceKeys()
     {
-        return List.of(TraceUtils.TRACE_NONE, TRACE_HORTICULTURIST);
+        return List.of(TraceUtils.TRACE_NONE, TRACE_HORTICULTURIST, TRACE_BIOME_MODULE);
     }
 
     private static boolean hasCommandPermission(final CommandSourceStack source)

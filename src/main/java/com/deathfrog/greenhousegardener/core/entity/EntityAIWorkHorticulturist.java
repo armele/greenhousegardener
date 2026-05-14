@@ -481,9 +481,16 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             if (module.wasFieldConversionBlockedOnDay(fieldPosition, colonyDay))
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because conversion was already blocked on colony day {}.",
+                final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
+                if (!canRestockShortageNow(conversionCost, safeTemperatureModule(), safeHumidityModule()))
+                {
+                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because conversion was already blocked on colony day {}.",
+                        building.getColony().getID(), fieldDescription, colonyDay));
+                    continue;
+                }
+
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist retrying blocked conversion field {} on colony day {} because matching climate material is now available.",
                     building.getColony().getID(), fieldDescription, colonyDay));
-                continue;
             }
 
             if (module.wasFieldRevertedOnDay(fieldPosition, colonyDay))
@@ -1599,25 +1606,70 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final GreenhouseTemperatureModule temperatureModule,
         final GreenhouseHumidityModule humidityModule)
     {
+        ClimateLedgerTarget requestableTarget = null;
+
         ClimateLedgerTarget target = shortageLedgerTarget(temperatureModule, ClimateItemList.INCREASE, cost.hot());
         if (target != null)
         {
-            return target;
+            if (hasAvailableClimateMaterial(target))
+            {
+                return target;
+            }
+            requestableTarget = target;
         }
 
         target = shortageLedgerTarget(temperatureModule, ClimateItemList.DECREASE, cost.cold());
         if (target != null)
         {
-            return target;
+            if (hasAvailableClimateMaterial(target))
+            {
+                return target;
+            }
+            if (requestableTarget == null)
+            {
+                requestableTarget = target;
+            }
         }
 
         target = shortageLedgerTarget(humidityModule, ClimateItemList.INCREASE, cost.humid());
         if (target != null)
         {
-            return target;
+            if (hasAvailableClimateMaterial(target))
+            {
+                return target;
+            }
+            if (requestableTarget == null)
+            {
+                requestableTarget = target;
+            }
         }
 
-        return shortageLedgerTarget(humidityModule, ClimateItemList.DECREASE, cost.dry());
+        target = shortageLedgerTarget(humidityModule, ClimateItemList.DECREASE, cost.dry());
+        if (target != null)
+        {
+            if (hasAvailableClimateMaterial(target))
+            {
+                return target;
+            }
+            if (requestableTarget == null)
+            {
+                requestableTarget = target;
+            }
+        }
+
+        return requestableTarget;
+    }
+
+    /**
+     * Check whether a target material can be consumed without waiting on a request.
+     *
+     * @param target material target to find
+     * @return true when the worker or greenhouse inventory has a matching item
+     */
+    private boolean hasAvailableClimateMaterial(final ClimateLedgerTarget target)
+    {
+        return InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches)
+            || InventoryUtils.hasItemInProvider(building, target::matches);
     }
 
     /**
@@ -2034,10 +2086,29 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return true;
         }
 
+        return canRestockShortageNow(cost, temperatureModule, humidityModule);
+    }
+
+    /**
+     * Check whether a currently short ledger can consume available material right now.
+     *
+     * @param cost required climate costs
+     * @param temperatureModule temperature ledger module
+     * @param humidityModule humidity ledger module
+     * @return true when at least one shortage can be advanced from worker or greenhouse inventory
+     */
+    private boolean canRestockShortageNow(
+        final BiomeConversionCost cost,
+        final GreenhouseTemperatureModule temperatureModule,
+        final GreenhouseHumidityModule humidityModule)
+    {
+        if (ledgerShortage(cost, temperatureModule, humidityModule).isBlank())
+        {
+            return false;
+        }
+
         final ClimateLedgerTarget target = findShortageLedgerTarget(cost, temperatureModule, humidityModule);
-        return target != null
-            && (InventoryUtils.hasItemInItemHandler(worker.getInventoryCitizen(), target::matches)
-                || InventoryUtils.hasItemInProvider(building, target::matches));
+        return target != null && hasAvailableClimateMaterial(target);
     }
 
     /**

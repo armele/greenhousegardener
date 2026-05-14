@@ -16,6 +16,8 @@ import org.apache.logging.log4j.util.TriConsumer;
 import org.jetbrains.annotations.NotNull;
 
 import com.deathfrog.greenhousegardener.Config;
+import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.ModCommands;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub;
@@ -23,6 +25,7 @@ import com.deathfrog.greenhousegardener.core.blocks.BlockClimateControlHub.Visua
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemValueListener;
 import com.deathfrog.greenhousegardener.core.util.FieldLocationComponents;
+import com.deathfrog.greenhousegardener.core.util.TraceUtils;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
@@ -36,6 +39,7 @@ import com.minecolonies.api.colony.buildings.modules.IPersistentModule;
 import com.minecolonies.api.colony.buildings.modules.ITickingModule;
 import com.minecolonies.api.util.MessageUtils;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
+import com.minecolonies.core.colony.buildings.workerbuildings.BuildingFarmer.FarmerFieldsModule;
 import com.minecolonies.core.items.ItemCrop;
 
 import net.minecraft.core.BlockPos;
@@ -87,6 +91,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_POS = "pos";
     private static final String TAG_BIOME = "biome";
     private static final String FIELD_MAINTENANCE_WARNING_MESSAGE = "com.greenhousegardener.biome_maintenance.warning";
+    private static final String FIELD_REVERTED_NOTICE = "com.greenhousegardener.biome_maintenance.reverted";
 
     private final Map<BlockPos, FieldBiomeAssignment> assignments = new HashMap<>();
     private final Set<BlockPos> ownedFields = new HashSet<>();
@@ -105,6 +110,11 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     public GreenhouseBiomeModule()
     {
         super();
+    }
+
+    private static void trace(final Runnable loggingStatement)
+    {
+        TraceUtils.dynamicTrace(ModCommands.TRACE_BIOME_MODULE, loggingStatement);
     }
 
     @Override
@@ -259,15 +269,21 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final ServerLevel level = getServerLevel();
         if (building == null || colony == null || level == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("BiomeModule colony tick skipped; building present? {}, colony present? {}, level present? {}.",
+                building != null, colony != null, level != null));
             return;
         }
 
         final long colonyDay = colony.getDay();
         if (lastMaintenanceDecayScanDay == colonyDay)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule skipped maintenance decay scan for day {}; already scanned.",
+                colony.getID(), colonyDay));
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule running maintenance decay scan for day {}; owned fields {}, tracked cells {}.",
+            colony.getID(), colonyDay, ownedFields.size(), appliedBiomes.size()));
         lastMaintenanceDecayScanDay = colonyDay;
         final boolean changed = expireUnmaintainedFieldOverlays(level, colonyDay);
         markDirty();
@@ -275,6 +291,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         {
             building.markDirty();
         }
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule completed maintenance decay scan for day {}; changed? {}.",
+            colony.getID(), colonyDay, changed));
     }
 
     /**
@@ -295,8 +313,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             }
 
             final BlockPos fieldPosition = field.getPosition();
-            if (fieldPosition == null || !isFieldModifiedFromNatural(level, fieldPosition) || !hasTrackedOverlay(field))
+            final boolean modified = fieldPosition != null && isFieldModifiedFromNatural(level, fieldPosition);
+            final boolean trackedOverlay = fieldPosition != null && hasTrackedOverlay(field);
+            if (fieldPosition == null || !modified || !trackedOverlay)
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule skipped decay for field {}; modified? {}, tracked overlay? {}.",
+                    colonyId(), formatBlockPos(fieldPosition), modified, trackedOverlay));
                 changed |= firstMissedMaintenanceDays.remove(fieldPosition) != null;
                 changed |= lastMaintenanceWarningDays.remove(fieldPosition) != null;
                 continue;
@@ -305,11 +327,15 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, colonyDay);
             if (decayStatus == null)
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule found no decay status for modified field {} on day {}; no successful climate work recorded.",
+                    colonyId(), formatBlockPos(fieldPosition), colonyDay));
                 continue;
             }
 
             if (decayStatus.daysSinceMaintenance() <= 0)
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule field {} was maintained today; clearing missed-maintenance warning state.",
+                    colonyId(), formatBlockPos(fieldPosition)));
                 changed |= firstMissedMaintenanceDays.remove(fieldPosition) != null;
                 changed |= lastMaintenanceWarningDays.remove(fieldPosition) != null;
                 continue;
@@ -322,6 +348,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> decayStatus.lastMaintenanceDay() + 1);
             if (decayStatus.shouldRevert())
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule reverting field {} on day {}; last maintained day {}, days since {}, configured delay {}.",
+                    colonyId(), formatBlockPos(immutablePosition), colonyDay, decayStatus.lastMaintenanceDay(),
+                    decayStatus.daysSinceMaintenance(), maintenanceRevertDays()));
                 revertFieldToNaturalBiome(immutablePosition, colonyDay);
                 changed = true;
                 continue;
@@ -332,6 +361,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
                 sendMaintenanceWarning(field, immutablePosition, decayStatus);
                 lastMaintenanceWarningDays.put(immutablePosition, colonyDay);
                 changed = true;
+            }
+            else if (decayStatus.shouldWarn())
+            {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule suppressed maintenance warning for field {} on day {}; last warning day {}, reverted today? {}, config enabled? {}.",
+                    colonyId(), formatBlockPos(immutablePosition), colonyDay, lastMaintenanceWarningDays.get(immutablePosition),
+                    wasFieldRevertedOnDay(immutablePosition, colonyDay), Config.fieldReversionWarning.get()));
             }
         }
 
@@ -364,16 +399,21 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (building == null || building.getColony() == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("BiomeModule suppressed maintenance warning for field {}; building/colony unavailable.",
+                formatBlockPos(fieldPosition)));
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule sending maintenance warning for field {}; last maintained day {}, days since {}, days until reversion {}.",
+            building.getColony().getID(), formatBlockPos(fieldPosition), decayStatus.lastMaintenanceDay(),
+            decayStatus.daysSinceMaintenance(), decayStatus.daysUntilReversion()));
         MessageUtils.format(Component.translatable(
             FIELD_MAINTENANCE_WARNING_MESSAGE,
             fieldDescription(field, fieldPosition),
             decayStatus.daysUntilReversion()))
             .withPriority(MessageUtils.MessagePriority.IMPORTANT)
-            .sendTo(building.getColony())
-            .forAllPlayers();
+            .sendTo(building.getColony(), true)
+            .forManagers();
     }
 
     /**
@@ -438,6 +478,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (fieldPosition == null || !isOwned(fieldPosition))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule rejected assignment {} for field {}; field owned? {}.",
+                colonyId(), formatAssignment(temperature, humidity), formatBlockPos(fieldPosition), isOwned(fieldPosition)));
             return;
         }
 
@@ -445,6 +487,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final FieldBiomeAssignment current = getAssignment(immutablePosition);
         if (current.temperature() == temperature && current.humidity() == humidity)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule assignment for field {} already {}; refreshing seed and hub state.",
+                colonyId(), formatBlockPos(immutablePosition), formatAssignment(current)));
             clearInvalidSeedForAssignedClimate(immutablePosition);
             updateHubVisualClimate(immutablePosition, current);
             return;
@@ -453,9 +497,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final FieldBiomeAssignment assignment = new FieldBiomeAssignment(temperature, humidity);
         if (!canSetAssignment(immutablePosition, assignment))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule rejected assignment {} for field {}; modified slots {}/{}.",
+                colonyId(), formatAssignment(assignment), formatBlockPos(immutablePosition),
+                getModifiedBiomeCount(getServerLevel()), getModifiedBiomeLimit()));
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule changed assignment for field {} from {} to {}.",
+            colonyId(), formatBlockPos(immutablePosition), formatAssignment(current), formatAssignment(assignment)));
         assignments.put(immutablePosition, assignment);
         clearInvalidSeedForClimate(getServerLevel(), getField(immutablePosition), climate(assignment));
         updateHubVisualClimate(immutablePosition, assignment);
@@ -484,6 +533,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (fieldPosition == null || building == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("BiomeModule rejected field ownership change; field {}, owned {}, building present? {}.",
+                formatBlockPos(fieldPosition), owned, building != null));
             return false;
         }
 
@@ -492,10 +543,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         {
             if (ownedFields.contains(immutablePosition))
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule field {} is already owned.",
+                    colonyId(), formatBlockPos(immutablePosition)));
                 return false;
             }
             if (ownedFields.size() >= getSupportedFieldCount() || !isEligibleUnownedField(immutablePosition))
             {
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule rejected field {} claim; owned fields {}/{}, eligible? {}.",
+                    colonyId(), formatBlockPos(immutablePosition), ownedFields.size(), getSupportedFieldCount(), isEligibleUnownedField(immutablePosition)));
                 return false;
             }
 
@@ -505,6 +560,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             clearInvalidSeedForClimate(level, getField(immutablePosition), climate(assignment));
             updateHubVisualClimate(immutablePosition, assignment);
             markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule claimed field {} with initial assignment {}; owned fields {}/{}.",
+                colonyId(), formatBlockPos(immutablePosition), formatAssignment(assignment), ownedFields.size(), getSupportedFieldCount()));
             return true;
         }
 
@@ -658,6 +715,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         firstMissedMaintenanceDays.remove(immutablePosition);
         lastMaintenanceWarningDays.remove(immutablePosition);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded conversion for field {} on day {}; assignment {}.",
+            colonyId(), formatBlockPos(immutablePosition), colonyDay, formatAssignment(getAssignment(immutablePosition))));
     }
 
     /**
@@ -675,6 +734,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         lastFieldVisitDays.put(fieldPosition.immutable(), colonyDay);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded field visit for {} on day {}.",
+            colonyId(), formatBlockPos(fieldPosition), colonyDay));
     }
 
     /**
@@ -801,7 +862,19 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     public int daysUntilMaintenanceReversion(final BlockPos fieldPosition, final long colonyDay)
     {
         final MaintenanceDecayStatus decayStatus = maintenanceDecayStatus(fieldPosition, colonyDay);
-        return decayStatus == null ? Config.maintenanceRevertDays.get() : decayStatus.daysUntilReversion();
+        return decayStatus == null ? maintenanceRevertDays() : decayStatus.daysUntilReversion();
+    }
+
+    /**
+     * After how many days without maintenance will the field revert to its natural biome?
+     * Note that the addition of 1 here implicitly allows all downstream logic to effectively respect the 'rule':
+     * "Maintenance yesterday and no maintenance today is not yet a day without maintenance, as maintenance still may happen today."
+     * 
+     * @return
+     */
+    public static int maintenanceRevertDays()
+    {
+        return Config.maintenanceRevertDays.get() + 1;
     }
 
     /**
@@ -819,6 +892,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         lastConversionBlockedDays.put(fieldPosition.immutable(), colonyDay);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded conversion block for field {} on day {}.",
+            colonyId(), formatBlockPos(fieldPosition), colonyDay));
     }
 
     /**
@@ -843,6 +918,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         if (lastConversionBlockedDays.entrySet().removeIf(entry -> dayEquals(entry.getValue(), colonyDay)))
         {
             markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule cleared conversion blocks for day {}.",
+                colonyId(), colonyDay));
         }
     }
 
@@ -882,6 +959,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         lastBiomeContentionWarningDays.put(key, colonyDay);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded biome contention warning between fields {} and {} on day {}.",
+            colonyId(), formatBlockPos(key.first()), formatBlockPos(key.second()), colonyDay));
     }
 
     /**
@@ -915,6 +994,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         firstMissedMaintenanceDays.remove(immutablePosition);
         lastMaintenanceWarningDays.remove(immutablePosition);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded maintenance for field {} on day {}.",
+            colonyId(), formatBlockPos(immutablePosition), colonyDay));
     }
 
     /**
@@ -940,6 +1021,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceVisitDays.put(immutablePosition, colonyDay);
         final long firstMissedDay = firstMissedMaintenanceDays.computeIfAbsent(immutablePosition, ignored -> missedMaintenanceStartDay);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule recorded missed maintenance for field {} on day {}; first missed day {}, last successful day {}.",
+            colonyId(), formatBlockPos(immutablePosition), colonyDay, firstMissedDay, lastMaintenanceDay));
         return firstMissedDay;
     }
 
@@ -969,6 +1052,16 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceWarningDays.remove(immutablePosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(immutablePosition));
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule reverted field {} to natural biome on day {}; cleared overlay tracking and seed assignment.",
+            colonyId(), formatBlockPos(immutablePosition), colonyDay));
+
+        MessageUtils.format(Component.translatable(
+            FIELD_REVERTED_NOTICE,
+            fieldDescription(field, fieldPosition)))
+            .withPriority(MessageUtils.MessagePriority.IMPORTANT)
+            .sendTo(building.getColony(), true)
+            .forManagers();
+
     }
 
     /**
@@ -1005,6 +1098,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         clearFieldSeed(field);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule cleared invalid seed for field {} in actual biome.",
+            colonyId(), field == null ? "null" : formatBlockPos(field.getPosition())));
         return true;
     }
 
@@ -1031,6 +1126,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         clearFieldSeed(field);
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule cleared invalid seed for field {} for target climate {}.",
+            colonyId(), formatBlockPos(field.getPosition()), climate));
         return true;
     }
 
@@ -1040,6 +1137,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final ServerLevel level = getServerLevel();
         if (level == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule destroyed without server level; clearing {} owned fields and {} tracked cells.",
+                colonyId(), ownedFields.size(), appliedBiomes.size()));
             ownedFields.clear();
             assignments.clear();
             lastConvertedDays.clear();
@@ -1053,6 +1152,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule destroyed; restoring all overlays for {} owned fields and {} tracked cells.",
+            colonyId(), ownedFields.size(), appliedBiomes.size()));
         GreenhouseBiomeOverlayService.restoreAllOverlays(level, naturalBiomes, appliedBiomes);
         clearInvalidOwnedFieldSeedsForActualBiomes(level);
         ownedFields.clear();
@@ -1076,9 +1177,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final ServerLevel level = getServerLevel();
         if (level == null || ownedFields.isEmpty() || appliedBiomes.isEmpty())
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule skipped pickup overlay restore; level present? {}, owned fields {}, tracked cells {}.",
+                colonyId(), level != null, ownedFields.size(), appliedBiomes.size()));
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule restoring owned field biomes before pickup; owned fields {}, tracked cells {}.",
+            colonyId(), ownedFields.size(), appliedBiomes.size()));
         GreenhouseBiomeOverlayService.restoreAllOverlays(level, naturalBiomes, appliedBiomes);
         clearInvalidOwnedFieldSeedsForActualBiomes(level);
         markDirty();
@@ -1268,6 +1373,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule releasing {} invalid owned fields with missing hubs: {}.",
+            colonyId(), invalidFields.size(), invalidFields.stream().map(GreenhouseBiomeModule::formatBlockPos).toList()));
         invalidFields.forEach(pos -> {
             releaseOwnedField(pos);
         });
@@ -1285,9 +1392,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (!ownedFields.remove(fieldPosition))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule ignored release for unowned field {}.",
+                colonyId(), formatBlockPos(fieldPosition)));
             return false;
         }
 
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule releasing owned field {}; restoring overlay and clearing tracking.",
+            colonyId(), formatBlockPos(fieldPosition)));
         restoreFieldOverlay(fieldPosition);
         clearFieldOverlayTracking(fieldPosition);
         clearInvalidSeedForActualBiome(getServerLevel(), getField(fieldPosition));
@@ -1302,6 +1413,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceWarningDays.remove(fieldPosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(fieldPosition));
         markDirty();
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule released field {}; owned fields remaining {}.",
+            colonyId(), formatBlockPos(fieldPosition), ownedFields.size()));
         return true;
     }
 
@@ -1315,6 +1428,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final FarmField field = getField(fieldPosition);
         if (field == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule could not clear overlay tracking for {}; field no longer exists.",
+                colonyId(), formatBlockPos(fieldPosition)));
             return;
         }
 
@@ -1327,6 +1442,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         naturalBiomes.keySet().removeIf(belongsOnlyToField);
         appliedBiomes.keySet().removeIf(belongsOnlyToField);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule cleared overlay tracking for field {}; protected overlap regions {}.",
+            colonyId(), formatBlockPos(fieldPosition), protectedRegions.size()));
     }
 
     /**
@@ -1373,6 +1490,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         level.setBlock(hubPosition, hubState.setValue(BlockClimateControlHub.CLIMATE, visualClimate), 3);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule set climate hub {} for field {} to {}.",
+            colonyId(), formatBlockPos(hubPosition), formatBlockPos(fieldPosition), visualClimate));
     }
 
     /**
@@ -1402,6 +1521,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (building == null || fieldPosition == null)
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("BiomeModule skipped overlay restore for field {}; building present? {}.",
+                formatBlockPos(fieldPosition), building != null));
             return;
         }
 
@@ -1409,13 +1530,18 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final FarmField field = getField(fieldPosition);
         if (field == null || !(level instanceof ServerLevel serverLevel))
         {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule skipped overlay restore for field {}; field present? {}, server level? {}.",
+                colonyId(), formatBlockPos(fieldPosition), field != null, level instanceof ServerLevel));
             return;
         }
 
+        final List<FieldBiomeFootprint> protectedFootprints = protectedOverlayFootprints(fieldPosition);
+        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule restoring overlay for field {}; tracked cells {}, protected fields {}.",
+            colonyId(), formatBlockPos(fieldPosition), appliedBiomes.size(), protectedFootprints.size()));
         GreenhouseBiomeOverlayService.restoreOverlay(
             serverLevel,
             biomeFootprint(field),
-            protectedOverlayFootprints(fieldPosition),
+            protectedFootprints,
             naturalBiomes,
             appliedBiomes);
     }
@@ -1448,6 +1574,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
+        unassignFieldFromFarmer(field);
+
         final ItemStack seed = field.getSeed();
         if (seed == null || seed.isEmpty())
         {
@@ -1455,6 +1583,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         clearFieldSeedAndResetStage(field);
+
         return true;
     }
 
@@ -1467,7 +1596,6 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         field.setSeed(ItemStack.EMPTY);
         field.setFieldStage(FarmField.Stage.EMPTY);
-        unassignFieldFromFarmer(field);
     }
 
     /**
@@ -1488,7 +1616,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
-        final var farmerFieldsModule = assignedBuilding.getModule(com.minecolonies.core.colony.buildings.modules.BuildingModules.FARMER_FIELDS);
+        final FarmerFieldsModule farmerFieldsModule = assignedBuilding.getModule(com.minecolonies.core.colony.buildings.modules.BuildingModules.FARMER_FIELDS);
         if (farmerFieldsModule != null)
         {
             farmerFieldsModule.freeExtension(field);
@@ -1551,7 +1679,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             lastMaintenanceDay,
             colonyDay,
             daysSinceMaintenance,
-            Math.max(0, Config.maintenanceRevertDays.get() - daysSinceMaintenance));
+            Math.max(0, maintenanceRevertDays() - daysSinceMaintenance));
     }
 
     /**
@@ -1566,7 +1694,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         private boolean shouldRevert()
         {
-            return daysSinceMaintenance >= Config.maintenanceRevertDays.get();
+            return daysSinceMaintenance >= maintenanceRevertDays();
         }
 
         private boolean shouldWarn()
@@ -1821,6 +1949,26 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static int quantize(final int value)
     {
         return QuartPos.toBlock(QuartPos.fromBlock(value));
+    }
+
+    private int colonyId()
+    {
+        return building == null || building.getColony() == null ? -1 : building.getColony().getID();
+    }
+
+    private static String formatBlockPos(final BlockPos pos)
+    {
+        return pos == null ? "null" : pos.getX() + "," + pos.getY() + "," + pos.getZ();
+    }
+
+    private static String formatAssignment(final FieldBiomeAssignment assignment)
+    {
+        return assignment == null ? "null" : formatAssignment(assignment.temperature(), assignment.humidity());
+    }
+
+    private static String formatAssignment(final TemperatureSetting temperature, final HumiditySetting humidity)
+    {
+        return String.valueOf(temperature) + "/" + String.valueOf(humidity);
     }
 
     /**
