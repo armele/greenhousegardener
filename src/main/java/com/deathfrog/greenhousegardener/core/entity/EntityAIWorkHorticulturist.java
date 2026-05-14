@@ -2023,6 +2023,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param overlayCheck loaded-cell overlay inspection for the field's assigned climate
      * @return true when the mismatch should be maintained rather than fully converted
      */
+    @SuppressWarnings("null")
     private static boolean isMaintenanceOverlayRepair(
         final GreenhouseBiomeModule module,
         final FarmField field,
@@ -2035,6 +2036,14 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
         final BlockPos fieldPosition = field.getPosition();
         if (fieldPosition == null || !module.hasRecordedClimateWork(fieldPosition) || !module.hasTrackedOverlay(field))
+        {
+            return false;
+        }
+
+        final ResourceLocation targetBiome = GreenhouseBiomeOverlayService.biomeFor(climate(module.getAssignment(fieldPosition)));
+        final BoundingBox region = biomeFootprint(field).paddedBiomeRegion();
+        if (targetBiome == null || region == null || module.getAppliedBiomes().entrySet().stream()
+            .anyMatch(entry -> region.isInside(entry.getKey()) && !targetBiome.equals(entry.getValue())))
         {
             return false;
         }
