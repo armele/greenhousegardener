@@ -25,18 +25,20 @@
         </box>
     </list>
 
-    <box size="168 48" pos="11 186" linewidth="1">
-        <text size="150 11" pos="9 3" color="black" textalign="MIDDLE" label="$(com.greenhousegardener.core.gui.biome.balance.title)"/>
-        <text size="43 11" pos="5 17" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.temp)"/>
-        <text size="32 11" pos="55 17" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.hot)"/>
-        <text id="hotBalance" size="28 11" pos="85 17" color="black" textalign="MIDDLE_LEFT"/>
-        <text size="32 11" pos="115 17" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.cold)"/>
-        <text id="coldBalance" size="26 11" pos="145 17" color="black" textalign="MIDDLE_LEFT"/>
-        <text size="43 11" pos="5 32" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.humidity)"/>
-        <text size="32 11" pos="55 32" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.humid)"/>
-        <text id="humidBalance" size="28 11" pos="85 32" color="black" textalign="MIDDLE_LEFT"/>
-        <text size="32 11" pos="115 32" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.dry)"/>
-        <text id="dryBalance" size="26 11" pos="145 32" color="black" textalign="MIDDLE_LEFT"/>
+    <button id="saveBiomeChanges" size="96 17" pos="47 185" color="black"
+            label="$(com.greenhousegardener.core.gui.biome.save)"
+            source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
+
+    <box size="168 30" pos="11 205" linewidth="1">
+        <text id="balanceTitle" size="20 11" pos="1 11" color="blue" textalign="MIDDLE" label="$(com.greenhousegardener.core.gui.biome.balance.title)"/>
+        <text size="32 11" pos="30 2" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.hot)"/>
+        <text id="hotBalance" size="28 11" pos="60 2" color="black" textalign="MIDDLE_LEFT"/>
+        <text size="32 11" pos="95 2" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.cold)"/>
+        <text id="coldBalance" size="26 11" pos="125 2" color="black" textalign="MIDDLE_LEFT"/>
+        <text size="32 11" pos="30 17" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.humid)"/>
+        <text id="humidBalance" size="28 11" pos="60 17" color="black" textalign="MIDDLE_LEFT"/>
+        <text size="32 11" pos="95 17" color="black" textalign="MIDDLE_LEFT" label="$(com.greenhousegardener.core.gui.biome.balance.dry)"/>
+        <text id="dryBalance" size="26 11" pos="125 17" color="black" textalign="MIDDLE_LEFT"/>
     </box>
 
 

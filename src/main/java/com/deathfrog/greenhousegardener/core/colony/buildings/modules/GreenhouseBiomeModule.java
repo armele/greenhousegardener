@@ -1,6 +1,7 @@
 package com.deathfrog.greenhousegardener.core.colony.buildings.modules;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -515,11 +516,17 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * Get the requested climate assignment for a field.
      *
      * @param fieldPosition position of the farm field anchor
-     * @return the saved assignment, or the default climate assignment
+     * @return the saved assignment, or the field's natural climate when the player has not configured it
      */
     public FieldBiomeAssignment getAssignment(final BlockPos fieldPosition)
     {
-        return assignments.getOrDefault(fieldPosition, FieldBiomeAssignment.DEFAULT);
+        if (fieldPosition == null)
+        {
+            return FieldBiomeAssignment.DEFAULT;
+        }
+
+        final FieldBiomeAssignment assignment = assignments.get(fieldPosition);
+        return assignment == null ? assignmentForNaturalClimate(getServerLevel(), fieldPosition) : assignment;
     }
 
     /**
@@ -556,7 +563,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
             ownedFields.add(immutablePosition);
             final ServerLevel level = getServerLevel();
-            final FieldBiomeAssignment assignment = assignments.computeIfAbsent(immutablePosition, ignored -> assignmentForNaturalClimate(level, immutablePosition));
+            final FieldBiomeAssignment assignment = getAssignment(immutablePosition);
             clearInvalidSeedForClimate(level, getField(immutablePosition), climate(assignment));
             updateHubVisualClimate(immutablePosition, assignment);
             markDirty();
@@ -615,15 +622,32 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      */
     public int getModifiedBiomeCount(final ServerLevel level)
     {
-        int count = 0;
-        for (final BlockPos fieldPosition : ownedFields)
+        return modifiedBiomeCount(level, ownedFields, assignments);
+    }
+
+    /**
+     * Count distinct modified target climates in a proposed field state.
+     *
+     * @param level server level containing biome data
+     * @param proposedOwned proposed owned fields
+     * @param proposedAssignments proposed explicit assignments
+     * @return distinct modified-biome variation count
+     */
+    private int modifiedBiomeCount(
+        final ServerLevel level,
+        final Collection<BlockPos> proposedOwned,
+        final Map<BlockPos, FieldBiomeAssignment> proposedAssignments)
+    {
+        final Set<FieldBiomeAssignment> modifiedAssignments = new HashSet<>();
+        for (final BlockPos fieldPosition : proposedOwned)
         {
-            if (isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition)))
+            final FieldBiomeAssignment assignment = proposedAssignments.getOrDefault(fieldPosition, assignmentForNaturalClimate(level, fieldPosition));
+            if (isAssignmentModifiedFromNatural(level, fieldPosition, assignment))
             {
-                count++;
+                modifiedAssignments.add(assignment);
             }
         }
-        return count;
+        return modifiedAssignments.size();
     }
 
     /**
@@ -670,9 +694,88 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         final ServerLevel level = getServerLevel();
-        final boolean currentlyModified = isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition));
-        final boolean requestedModified = isAssignmentModifiedFromNatural(level, fieldPosition, assignment);
-        return currentlyModified || !requestedModified || getModifiedBiomeCount(level) < getModifiedBiomeLimit();
+        final Map<BlockPos, FieldBiomeAssignment> proposedAssignments = new HashMap<>(assignments);
+        proposedAssignments.put(fieldPosition.immutable(), assignment);
+        return modifiedBiomeCount(level, ownedFields, proposedAssignments) <= getModifiedBiomeLimit();
+    }
+
+    /**
+     * Apply a complete batch of field ownership and assignment changes after validating the final state.
+     *
+     * @param changes requested field changes
+     * @return true when the full batch was valid and applied
+     */
+    public boolean applyFieldChanges(final Collection<FieldBiomeChange> changes)
+    {
+        if (changes == null || changes.isEmpty() || building == null)
+        {
+            return false;
+        }
+
+        final ProposedFieldState proposed = proposedFieldState(changes);
+        if (proposed == null || modifiedBiomeCount(getServerLevel(), proposed.ownedFields(), proposed.assignments()) > getModifiedBiomeLimit())
+        {
+            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule rejected batched field changes; proposed modified variations {}/{}.",
+                colonyId(),
+                proposed == null ? -1 : modifiedBiomeCount(getServerLevel(), proposed.ownedFields(), proposed.assignments()),
+                getModifiedBiomeLimit()));
+            return false;
+        }
+
+        for (final FieldBiomeChange change : changes)
+        {
+            if (change.owned())
+            {
+                setFieldOwned(change.fieldPosition(), true);
+                setAssignment(change.fieldPosition(), change.assignment().temperature(), change.assignment().humidity());
+            }
+            else
+            {
+                setFieldOwned(change.fieldPosition(), false);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Build and validate the final owned/assignment state for a batched save.
+     *
+     * @param changes requested field changes
+     * @return proposed final state, or null when the request is invalid
+     */
+    private ProposedFieldState proposedFieldState(final Collection<FieldBiomeChange> changes)
+    {
+        final Set<BlockPos> proposedOwned = new HashSet<>(ownedFields);
+        final Map<BlockPos, FieldBiomeAssignment> proposedAssignments = new HashMap<>(assignments);
+
+        for (final FieldBiomeChange change : changes)
+        {
+            if (change == null || change.fieldPosition() == null || change.assignment() == null)
+            {
+                return null;
+            }
+
+            final BlockPos fieldPosition = change.fieldPosition().immutable();
+            if (change.owned())
+            {
+                if (!proposedOwned.contains(fieldPosition))
+                {
+                    if (proposedOwned.size() >= getSupportedFieldCount() || !isEligibleUnownedField(fieldPosition))
+                    {
+                        return null;
+                    }
+                    proposedOwned.add(fieldPosition);
+                }
+                proposedAssignments.put(fieldPosition, change.assignment());
+            }
+            else
+            {
+                proposedOwned.remove(fieldPosition);
+                proposedAssignments.remove(fieldPosition);
+            }
+        }
+
+        return new ProposedFieldState(proposedOwned, proposedAssignments);
     }
 
     /**
@@ -1043,6 +1146,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         restoreFieldOverlay(immutablePosition);
         clearFieldOverlayTracking(immutablePosition);
         clearFieldSeed(field);
+        assignments.remove(immutablePosition);
+        updateHubVisualClimate(immutablePosition, getAssignment(immutablePosition));
         lastRevertedDays.put(immutablePosition, colonyDay);
         lastConvertedDays.remove(immutablePosition);
         lastFieldVisitDays.remove(immutablePosition);
@@ -2138,6 +2243,20 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         public static final FieldBiomeAssignment DEFAULT =
             new FieldBiomeAssignment(TemperatureSetting.TEMPERATE, HumiditySetting.NORMAL);
+    }
+
+    /**
+     * Requested field state for batched biome settings saves.
+     */
+    public record FieldBiomeChange(BlockPos fieldPosition, FieldBiomeAssignment assignment, boolean owned)
+    {
+    }
+
+    /**
+     * Proposed final state for validating a batched save before any mutation occurs.
+     */
+    private record ProposedFieldState(Set<BlockPos> ownedFields, Map<BlockPos, FieldBiomeAssignment> assignments)
+    {
     }
 
     public enum TemperatureSetting

@@ -1,5 +1,5 @@
 {
-  "parent": "minecolonies:block/crops/rice/stage4",
+  "parent": "minecraft:block/crop",
   "render_type": "cutout",
   "textures": {
     "particle": "greenhousegardener:block/crops/cucumber/stage4",

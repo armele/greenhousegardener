@@ -2,9 +2,11 @@ package com.deathfrog.greenhousegardener.core.entity;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -454,7 +456,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         final int modifiedBiomeLimit = module.getModifiedBiomeLimit();
         final long colonyDay = building.getColony().getDay();
-        int maintainedModifiedBiomes = 0;
+        final Set<FieldBiomeAssignment> maintainedModifiedBiomes = new HashSet<>();
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++)
         {
             final FarmField field = fields.get(fieldIndex);
@@ -470,15 +472,16 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             final int fieldRange = horizontalRange(field);
             if (module.isFieldModifiedFromNatural(level, fieldPosition))
             {
-                if (maintainedModifiedBiomes >= modifiedBiomeLimit)
+                if (!maintainedModifiedBiomes.contains(assignment) && maintainedModifiedBiomes.size() >= modifiedBiomeLimit)
                 {
                     continue;
                 }
 
-                maintainedModifiedBiomes++;
+                maintainedModifiedBiomes.add(assignment);
             }
 
-            if (module.wasFieldConversionBlockedOnDay(fieldPosition, colonyDay))
+            final boolean conversionBlockedToday = module.wasFieldConversionBlockedOnDay(fieldPosition, colonyDay);
+            if (conversionBlockedToday)
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
                 final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
@@ -497,6 +500,17 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
                 trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because it reverted on colony day {}.",
+                    building.getColony().getID(), fieldDescription, colonyDay));
+                continue;
+            }
+
+            if (!HorticulturistConversionPolicy.mayAttemptConversionToday(
+                module.wasFieldConvertedOnDay(fieldPosition, colonyDay),
+                module.wasFieldVisitedOnDay(fieldPosition, colonyDay),
+                conversionBlockedToday))
+            {
+                final String fieldDescription = formatField(fieldIndex, fieldPosition);
+                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because it was already converted or visited on colony day {}.",
                     building.getColony().getID(), fieldDescription, colonyDay));
                 continue;
             }

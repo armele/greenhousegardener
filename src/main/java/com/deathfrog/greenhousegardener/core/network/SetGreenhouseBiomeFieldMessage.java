@@ -20,7 +20,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 /**
  * Persists a greenhouse field's selected ownership and climate axes.
  */
-public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, BlockPos fieldPos, int temperatureId, int humidityId, boolean owned) implements IServerboundPayload
+public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, BlockPos fieldPos, int temperatureId, int humidityId, boolean owned, boolean assignmentChanged) implements IServerboundPayload
 {
     @SuppressWarnings("null")
     public static final Type<SetGreenhouseBiomeFieldMessage> ID =
@@ -38,6 +38,8 @@ public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, BlockPos fiel
         SetGreenhouseBiomeFieldMessage::humidityId,
         ByteBufCodecs.BOOL,
         SetGreenhouseBiomeFieldMessage::owned,
+        ByteBufCodecs.BOOL,
+        SetGreenhouseBiomeFieldMessage::assignmentChanged,
         SetGreenhouseBiomeFieldMessage::new);
 
     @Override
@@ -78,7 +80,7 @@ public record SetGreenhouseBiomeFieldMessage(BlockPos buildingPos, BlockPos fiel
 
         module.cleanupInvalidOwnedFields();
         module.setFieldOwned(fieldPos, owned);
-        if (owned)
+        if (owned && assignmentChanged)
         {
             module.setAssignment(
                 fieldPos,

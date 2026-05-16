@@ -150,7 +150,13 @@ public final class GreenhouseBiomeOverlayService
                     return currentBiome;
                 }
 
-                holderId(currentBiome).ifPresent(id -> naturalBiomes.putIfAbsent(cellPos, id));
+                final Optional<ResourceLocation> currentBiomeId = holderId(currentBiome);
+                if (!shouldWriteOverlayCell(currentBiomeId.orElse(null), targetBiomeId))
+                {
+                    return currentBiome;
+                }
+
+                currentBiomeId.ifPresent(id -> naturalBiomes.putIfAbsent(cellPos, id));
                 appliedBiomes.put(cellPos, targetBiomeId);
                 changedCells.add(cellPos);
                 return targetBiome;
@@ -634,6 +640,18 @@ public final class GreenhouseBiomeOverlayService
     private static int quantize(final int value)
     {
         return QuartPos.toBlock(QuartPos.fromBlock(value));
+    }
+
+    /**
+     * Check whether a biome cell needs to be written to the target overlay biome.
+     *
+     * @param currentBiomeId current biome id, or null when it cannot be resolved
+     * @param targetBiomeId desired overlay biome id
+     * @return true when the overlay writer should replace the cell
+     */
+    static boolean shouldWriteOverlayCell(final ResourceLocation currentBiomeId, final ResourceLocation targetBiomeId)
+    {
+        return targetBiomeId != null && !targetBiomeId.equals(currentBiomeId);
     }
 
     @SuppressWarnings("null")

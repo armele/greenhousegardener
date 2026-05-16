@@ -22,6 +22,7 @@ public final class NetworkHandler
         final PayloadRegistrar registrar = event.registrar(GreenhouseGardenerMod.MODID).versioned(modVersion);
         registrar.playToClient(HighlightFieldBlockMessage.ID, HighlightFieldBlockMessage.STREAM_CODEC, HighlightFieldBlockMessage::onExecute);
         registrar.playToServer(RefreshGreenhouseBiomeModuleMessage.ID, RefreshGreenhouseBiomeModuleMessage.STREAM_CODEC, RefreshGreenhouseBiomeModuleMessage::onExecute);
+        registrar.playToServer(SaveGreenhouseBiomeFieldsMessage.ID, SaveGreenhouseBiomeFieldsMessage.STREAM_CODEC, SaveGreenhouseBiomeFieldsMessage::onExecute);
         registrar.playToServer(SetGreenhouseBiomeFieldMessage.ID, SetGreenhouseBiomeFieldMessage.STREAM_CODEC, SetGreenhouseBiomeFieldMessage::onExecute);
         registrar.playToServer(SetGreenhouseClimateItemMessage.ID, SetGreenhouseClimateItemMessage.STREAM_CODEC, SetGreenhouseClimateItemMessage::onExecute);
     }
