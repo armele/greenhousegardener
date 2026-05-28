@@ -23,8 +23,7 @@
     "minecraft:wet_sponge": 55,
     "minecraft:water_bucket": 55,
     "minecolonies:large_water_bottle": 55,
-    "minecraft:heart_of_the_sea": 220,
-    "minecraft:conduit": 220
+    "minecraft:heart_of_the_sea": 220
   },
   "humid_down": {
     "minecraft:sand": 11,

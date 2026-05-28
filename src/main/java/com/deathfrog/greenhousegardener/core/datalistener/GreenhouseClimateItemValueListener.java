@@ -1,14 +1,13 @@
 package com.deathfrog.greenhousegardener.core.datalistener;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import javax.annotation.Nonnull;
-
 import org.jetbrains.annotations.NotNull;
-
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateModificationType;
 import com.google.gson.Gson;
@@ -16,7 +15,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -53,14 +51,14 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
     }
 
     @Override
-    protected void apply(
-        @NotNull final @Nonnull Map<ResourceLocation, JsonElement> object,
+    protected void apply(@NotNull final @Nonnull Map<ResourceLocation, JsonElement> object,
         @NotNull final @Nonnull ResourceManager resourceManager,
         @NotNull final @Nonnull ProfilerFiller profiler)
     {
         clearValues();
 
-        object.entrySet().stream()
+        object.entrySet()
+            .stream()
             .sorted(Map.Entry.comparingByKey())
             .forEach(entry -> loadClimateItemFile(entry.getKey(), entry.getValue()));
 
@@ -102,7 +100,7 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
     /**
      * Check whether a stack has a configured climate value for the requested modification type.
      *
-     * @param type climate modification type
+     * @param type  climate modification type
      * @param stack item stack to check
      * @return true when the stack contributes CCU to the requested climate direction
      */
@@ -114,7 +112,7 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
     /**
      * Resolve a stack's configured climate value for the requested modification type.
      *
-     * @param type climate modification type
+     * @param type  climate modification type
      * @param stack item stack to value
      * @return CCU value for one item, or zero when the stack is not configured
      */
@@ -158,6 +156,58 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
             value = Math.max(value, getValue(type, stack));
         }
         return value;
+    }
+
+    /**
+     * Build a network-friendly snapshot of all loaded climate item values.
+     *
+     * @return climate item values to sync to clients
+     */
+    @SuppressWarnings("null")
+    public List<SyncedClimateItemValue> snapshotValues()
+    {
+        final List<SyncedClimateItemValue> values = new ArrayList<>();
+
+        for (final ClimateModificationType type : ClimateModificationType.values())
+        {
+            itemValues.get(type)
+                .forEach(
+                    (item, value) -> values.add(new SyncedClimateItemValue(type, false, BuiltInRegistries.ITEM.getKey(item), value)));
+
+            tagValues.get(type).forEach((tag, value) -> values.add(new SyncedClimateItemValue(type, true, tag.location(), value)));
+        }
+
+        return values;
+    }
+
+    /**
+     * Replace the local climate item values with values received from the server.
+     *
+     * @param values server-authoritative climate item values
+     */
+    public void applySyncedValues(final List<SyncedClimateItemValue> values)
+    {
+        clearValues();
+
+        for (final SyncedClimateItemValue value : values)
+        {
+            ResourceLocation id = value.id();
+
+            if (id == null) continue;
+
+            if (value == null || value.type() == null || id == null || value.value() <= 0)
+            {
+                continue;
+            }
+
+            if (value.tag())
+            {
+                tagValues.get(value.type()).put(ItemTags.create(id), value.value());
+                continue;
+            }
+
+            parseItem(id.toString() + "").ifPresent(item -> itemValues.get(value.type()).put(item, value.value()));
+        }
     }
 
     private void loadClimateItemFile(final ResourceLocation file, final JsonElement elem)
@@ -215,8 +265,7 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
                 continue;
             }
 
-            final Item item = parseItem(key)
-                .orElseThrow(() -> new JsonParseException("Unknown climate item in " + file + ": " + key));
+            final Item item = parseItem(key).orElseThrow(() -> new JsonParseException("Unknown climate item in " + file + ": " + key));
             itemValues.get(type).put(item, value);
         }
     }
@@ -243,4 +292,15 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
             case DRY -> "humid_down";
         };
     }
+
+    /**
+     * Serialized climate item value entry used for server-to-client sync.
+     *
+     * @param type  climate modification direction
+     * @param tag   true when {@code id} names an item tag, false when it names an item
+     * @param id    item id or item tag id
+     * @param value CCU value
+     */
+    public record SyncedClimateItemValue(ClimateModificationType type, boolean tag, ResourceLocation id, int value)
+    {}
 }
