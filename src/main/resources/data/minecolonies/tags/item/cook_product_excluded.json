@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "greenhousegardener:breadcrumbs",
+    "greenhousegardener:biscuits",
+    "greenhousegardener:pastie",
+    "greenhousegardener:pastry",
+    "greenhousegardener:sourdough_bread",
+    "greenhousegardener:sourdough_starter",
+    "greenhousegardener:spanakopita",
+    "greenhousegardener:waffles"
+  ]
+}
