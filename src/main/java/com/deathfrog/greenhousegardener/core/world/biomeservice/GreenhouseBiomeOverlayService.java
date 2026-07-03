@@ -260,6 +260,7 @@ public final class GreenhouseBiomeOverlayService
             return OverlayResult.EMPTY;
         }
 
+        @SuppressWarnings("null")
         final List<BoundingBox> protectedRegions = protectedFootprints == null
             ? List.of()
             : protectedFootprints.stream()
@@ -287,6 +288,7 @@ public final class GreenhouseBiomeOverlayService
             return OverlayResult.EMPTY;
         }
 
+        @SuppressWarnings("null")
         final List<BlockPos> positions = appliedBiomes.keySet().stream().sorted(Comparator.comparing(BlockPos::asLong)).toList();
         final BlockPos first = positions.getFirst();
         int minX = first.getX();
@@ -662,6 +664,7 @@ public final class GreenhouseBiomeOverlayService
             .getHolderOrThrow(ResourceKey.create(Registries.BIOME, biomeId));
     }
 
+    @SuppressWarnings("null")
     private static Optional<ResourceLocation> holderId(final Holder<Biome> biome)
     {
         return biome.unwrapKey().map(ResourceKey::location);

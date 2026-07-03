@@ -6,11 +6,17 @@
       "item": "greenhousegardener:cucumber"
     },
     {
-      "item": "greenhousegardener:apple_cider_vinegar"
+      "item": "minecolonies:mint"
+    },
+    {
+      "item": "minecolonies:garlic"
+    },
+    {
+      "item": "minecolonies:yogurt"
     }
   ],
   "result": {
     "count": 2,
-    "id": "greenhousegardener:pickles"
+    "id": "greenhousegardener:tzatziki"
   }
 }

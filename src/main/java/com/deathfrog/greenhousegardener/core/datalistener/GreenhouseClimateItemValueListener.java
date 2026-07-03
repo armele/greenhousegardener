@@ -270,6 +270,7 @@ public class GreenhouseClimateItemValueListener extends SimpleJsonResourceReload
         }
     }
 
+    @SuppressWarnings("null")
     private void clearValues()
     {
         itemValues.values().forEach(Map::clear);

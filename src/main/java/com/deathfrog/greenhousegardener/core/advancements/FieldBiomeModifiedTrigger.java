@@ -28,6 +28,7 @@ public class FieldBiomeModifiedTrigger extends SimpleCriterionTrigger<FieldBiome
 
     public record TriggerInstance(Optional<ContextAwarePredicate> player) implements SimpleCriterionTrigger.SimpleInstance
     {
+        @SuppressWarnings("null")
         public static final Codec<TriggerInstance> CODEC = RecordCodecBuilder.create(builder -> builder
             .group(EntityPredicate.ADVANCEMENT_CODEC.optionalFieldOf("player").forGetter(TriggerInstance::player))
             .apply(builder, TriggerInstance::new));

@@ -284,6 +284,7 @@ public abstract class GreenhouseClimateItemModule extends AbstractBuildingModule
      * @param provider holder lookup used to deserialize item stacks
      * @param compound building module NBT
      */
+    @SuppressWarnings("null")
     @Override
     public void deserializeNBT(@NotNull final HolderLookup.Provider provider, final CompoundTag compound)
     {

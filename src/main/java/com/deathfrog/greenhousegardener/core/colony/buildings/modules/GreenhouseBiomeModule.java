@@ -1462,6 +1462,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     /**
      * Remove ownership for any field whose climate hub has been removed.
      */
+    @SuppressWarnings("null")
     public void cleanupInvalidOwnedFields()
     {
         if (building == null || ownedFields.isEmpty())
@@ -1528,6 +1529,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      *
      * @param fieldPosition position of the farm field anchor
      */
+    @SuppressWarnings("null")
     private void clearFieldOverlayTracking(final BlockPos fieldPosition)
     {
         final FarmField field = getField(fieldPosition);
