@@ -2,10 +2,11 @@
   "replace": false,
   "temp_up": {
     "minecraft:torch": 4,
-    "minecraft:blaze_powder": 13,
     "minecraft:charcoal": 18,
+    "minecraft:blaze_powder": 34,
     "minecraft:campfire": 35,
     "minecraft:magma_block": 55,
+    "minecraft:blaze_rod": 85,
     "minecraft:coal_block": 176,
     "minecraft:lava_bucket": 220
   },
