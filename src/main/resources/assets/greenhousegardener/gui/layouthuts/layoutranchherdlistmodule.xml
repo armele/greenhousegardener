@@ -1,0 +1,24 @@
+<window xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/main/src/main/resources/assets/blockui/gui/block_ui.xsd"
+    size="190 244">
+    <image source="minecolonies:textures/gui/builderhut/builder_paper.png" size="190 244"/>
+    <text id="title" size="170 11" pos="10 13" textalign="MIDDLE" color="black"
+        label="$(com.greenhousegardener.core.gui.modules.ranch_herds)"/>
+    <text id="capacity" size="170 11" pos="10 31" textalign="MIDDLE" color="black"/>
+    <list id="herds" size="170 174" pos="10 51"
+        emptytext="$(com.greenhousegardener.core.gui.ranch_herds.empty)" emptycolor="black">
+        <box size="100% 17" linewidth="1">
+            <text id="animal" size="79 12" pos="3 2" color="black"/>
+            <itemicon id="breedingFood" size="16 16" pos="82 0"
+                tooltip="$(com.greenhousegardener.core.gui.ranch_herds.breeding_food)"/>
+            <itemicon id="cannotBreed" size="16 16" pos="82 0"
+                tooltip="$(com.greenhousegardener.core.gui.ranch_herds.cannot_breed)"/>
+            <itemicon id="bowl" size="16 16" pos="99 0"
+                tooltip="$(com.greenhousegardener.core.gui.ranch_herds.bowl_milkable)"/>
+            <itemicon id="bucket" size="16 16" pos="116 0"
+                tooltip="$(com.greenhousegardener.core.gui.ranch_herds.bucket_milkable)"/>
+            <itemicon id="shears" size="16 16" pos="133 0"
+                tooltip="$(com.greenhousegardener.core.gui.ranch_herds.shearable)"/>
+            <text id="count" size="12 12" pos="150 2" textalign="RIGHT" color="black"/>
+        </box>
+    </list>
+</window>

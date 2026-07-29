@@ -2,6 +2,7 @@ package com.deathfrog.greenhousegardener.core.blocks;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutGreenhouse;
+import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutRanch;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -12,6 +13,8 @@ public final class ModBlocks
 
   public static final DeferredBlock<BlockHutGreenhouse> blockHutGreenhouse =
     BLOCKS.register(BlockHutGreenhouse.HUT_NAME, BlockHutGreenhouse::new);
+  public static final DeferredBlock<BlockHutRanch> blockHutRanch =
+    BLOCKS.register(BlockHutRanch.HUT_NAME, BlockHutRanch::new);
 
   public static final DeferredBlock<BlockClimateControlHub> climateControlHub =
     BLOCKS.register(BlockClimateControlHub.BLOCK_NAME, BlockClimateControlHub::new);

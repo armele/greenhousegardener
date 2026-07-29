@@ -1,0 +1,33 @@
+{
+  "name": "Bear With Me",
+  "subtitle": "Experience makes even the wildest livestock less daunting.",
+  "branch": "minecolonies:technology",
+  "parentResearch": "greenhousegardener:technology/tooth_and_nail",
+  "researchLevel": 4,
+  "sortOrder": 0,
+  "exclusiveChildResearch": false,
+  "no-reset": false,
+  "hidden": false,
+  "autostart": false,
+  "instant": false,
+  "requirements": [
+    {
+      "type": "minecolonies:building",
+      "building": "greenhousegardener:ranch",
+      "level": 4
+    }
+  ],
+  "costs": [
+    {
+      "count": 64,
+      "item": "minecraft:armadillo_scute"
+    }
+  ],
+  "effects": [
+    {
+      "id": "greenhousegardener:effects/rancher_animal_resistance",
+      "level": 2
+    }
+  ],
+  "icon": "minecraft:shield"
+}

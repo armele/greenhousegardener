@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    { "id": "naturalist:bear", "required": false },
+    { "id": "naturalist:black_bear", "required": false },
+    { "id": "wildernature:minisheep", "required": false }
+  ]
+}

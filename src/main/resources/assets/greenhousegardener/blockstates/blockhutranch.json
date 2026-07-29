@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=east": { "model": "greenhousegardener:block/blockhutranch", "y": 90 },
+    "facing=south": { "model": "greenhousegardener:block/blockhutranch", "y": 180 },
+    "facing=west": { "model": "greenhousegardener:block/blockhutranch", "y": 270 },
+    "facing=north": { "model": "greenhousegardener:block/blockhutranch", "y": 0 }
+  }
+}

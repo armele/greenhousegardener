@@ -12,10 +12,13 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 public final class ModJobs
 {
     public static final String HORTICULTURIST_TAG = "horticulturist";
+    public static final String RANCHER_TAG = "rancher";
 
     public static final ResourceLocation HORTICULTURIST_ID = ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, HORTICULTURIST_TAG);
+    public static final ResourceLocation RANCHER_ID = ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, RANCHER_TAG);
 
     public static DeferredHolder<JobEntry, JobEntry> horticulturist;
+    public static DeferredHolder<JobEntry, JobEntry> rancher;
 
     private ModJobs()
     {
@@ -26,6 +29,7 @@ public final class ModJobs
     {
         List<ResourceLocation> jobs = new ArrayList<>() { };
         jobs.add(HORTICULTURIST_ID);
+        jobs.add(RANCHER_ID);
 
         return jobs;
     }

@@ -1,0 +1,33 @@
+{
+  "name": "Tooth and Nail",
+  "subtitle": "Ranchers better avoid teeth, hooves, and claws.",
+  "branch": "minecolonies:technology",
+  "parentResearch": "minecolonies:technology/skilledbutcher",
+  "researchLevel": 3,
+  "sortOrder": 0,
+  "exclusiveChildResearch": false,
+  "no-reset": false,
+  "hidden": false,
+  "autostart": false,
+  "instant": false,
+  "requirements": [
+    {
+      "type": "minecolonies:building",
+      "building": "greenhousegardener:ranch",
+      "level": 2
+    }
+  ],
+  "costs": [
+    {
+      "count": 32,
+      "item": "minecraft:armadillo_scute"
+    }
+  ],
+  "effects": [
+    {
+      "id": "greenhousegardener:effects/rancher_animal_resistance",
+      "level": 1
+    }
+  ],
+  "icon": "minecraft:armadillo_scute"
+}
