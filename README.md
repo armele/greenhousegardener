@@ -4,7 +4,7 @@ Greenhouse Gardener is a MineColonies add-on for colonies that need to grow crop
 
 ## Intended Gameplay
 
-The player builds a MineColonies Greenhouse. The building provides a module for selecting which crop fields can be climate controlled - altering the biome to allow growth of biome-specific crops. Biome modification requires that material be provided that enable that modification.
+The player builds a MineColonies Greenhouse. The building provides a module for selecting which crop fields can be climate controlled - altering the biome to allow growth of biome-specific crops. Biome modification requires that materials be provided that enable that modification.
 
 The Greenhouse worker orders approved materials from the colony warehouse. Those materials represent the environmental systems required to alter and sustain the local growing conditions by adjusting the temperature and humidity.
 
@@ -21,6 +21,8 @@ The greenhouse capacity is:
 | 3 | 3 |
 | 4 | 4 |
 | 5 | 4 |
+
+At level 1 a Horticulturist can support 1 modified biome. At building levels 2+ they can support 2 different modified biomes, and research can unlock an extra.
 
 ### Modules
 The building module UI supports selecting the target biome conditions for each maintained field slot and designating what blocks will be used for biome conditioning. 
@@ -43,18 +45,34 @@ Adds a Horticulturist job that periodically:
 - Uses these materials to modify (initial cost) and maintain (lower ongoing cost) the climate in the specific field area.
 
 ### Worker Skills
-The horticulturists' primary skill improves their efficiency when using climate control blocks.  Their secondary skill improves their work speed.
+The Horticulturist's primary skill improves their efficiency when using climate control blocks.  Their secondary skill improves their work speed.
 
 ## Research
 New research is introduced (found in the University like any other research) which unlocks the building, improves the number of maintainable biome variations, and improves the efficiency of the maintenance.
 
+The Ranch also has research that improves the Rancher's resistance to attacks from managed animals. Strength further improves that resistance and increases butchering damage.
+
 ## New Crops and Food Recipes
 New crops are:
 - Cucumbers (temperate biomes)
-- Spinach (temperate biomes)
+- Spinach (all biomes)
 - Broccoli (cold biomes)
 
-Over a dozen new food recipes are available - look them up in your JEI!
+Dozens of new foods, ingredients, crafting recipes, and MineColonies Chef/Baker recipes are included. Use JEI to browse the complete set.
+
+## Ranch and Rancher
+
+The Ranch is a MineColonies worker building for land animals that are not assigned to one of the core animal-herding buildings. Its Rancher can feed, breed, butcher, shear, milk, and collect dropped products from datapack-designated species.
+
+Herd capacity is calculated separately for every exact entity type at two animals per building level. A level 3 Ranch can therefore maintain six deer and six boars independently rather than treating them as one combined herd.
+
+The Rancher discovers breeding foods from each live animal's own `Animal.isFood` behavior. This allows compatible modded animals to work without a Java integration or a hard dependency. Species that do not expose any breeding food can still be butchered or provide renewable products when their capability tags permit it.
+
+Tamed, custom-named, leashed, saddled, and player-owned animals are never selected for butchering. They remain eligible for non-destructive care and product collection. Ranch butchering uses the normal MineColonies herder attack path, including the Looting research effect.
+
+Ranchers will attempt to maintain herds of aggressive animals (such as bears and wolves) if they're in the building. This will provoke retaliation from the animals. Ranchers are trained in dealing with this, but not immune. The primary skill and research can increase their effectiveness.
+
+Naturalist and Let's Do: Wilder Nature land animals are included through optional datapack tag entries. Neither mod is required.
 
 ## Greenhouse Design Guide for Style Builders
 
@@ -78,7 +96,7 @@ Biome conditioning is applied to the field footprint from MineColonies, plus a h
 Builder implications:
 
 - Do not design two differently conditioned fields immediately beside each other.
-- Leave at least 4 blocks of horizontal spacing between the crop footprints of fields that may use different climates.
+- Leave at least 8 blocks between the crop footprints of fields that may use different climates.
 - More spacing is safer when decorative layouts make the field edges hard to read.
 - Adjacent or overlapping fields that always share the same target climate are not a problem.
 - The hidden 4-block biome buffer is not charged as extra conversion area and is not part of roof validation; it only protects crop biome lookup at the field edges.
@@ -123,11 +141,10 @@ The horticulturist will not try to do anything with a reverted field until the n
 
 ### Field Positioning
 
-The horticulturist doesn't have the technology to accomplish precision biome modification. There's always a bit of area around the field that will be affected by this conditioning as well.  This means if you have two fields with different conditioned biomes too close together, your field biomes will "fight" with eachother - causing wasted CCU and ineffective crop growth.  Your horticulturist will warn you of this situation.  To avoid it, make sure your conditioned fields are about 8 blocks apart, at least - or share the same temperature and humidity settings.
+The horticulturist doesn't have the technology to accomplish precision biome modification. There's always a bit of area around the field that will be affected by this conditioning as well.  This means if you have two fields with different conditioned biomes too close together, your field biomes will "fight" with each other - causing wasted CCU and ineffective crop growth.  Your horticulturist will warn you of this situation.  To avoid it, make sure your conditioned fields are about 8 blocks apart, at least - or share the same temperature and humidity settings.
 
-## Style Guidance
-For reliable schematics:
-
+## Style Guidance - Greenhouse
+For reliable Greenhouse schematics:
 - Include enough storage access for climate materials.
 - Do not depend on temporary scaffold blocks as roof coverage.
 - Keep the Climate Control Hub protected from accidental replacement by style upgrades.
@@ -140,12 +157,65 @@ For reliable schematics:
 - Worker can path to the field anchor and all four field corners.
 - Every crop-footprint column has roof-like cover within 20 blocks above field height.
 - At least 75 percent of crop-footprint columns use `greenhousegardener:greenhouse_roof` tagged material, unless the pack config changes the requirement.
-- Fields that may have different climates are separated by at least 4 blocks between crop footprints.
+- Leave at least 8 blocks between the crop footprints of fields that may use different climates.
 - Field footprint, roof footprint, and visible room design all agree, so players can tell what area is being conditioned.
+
+## Style Guidance - Ranch
+The ranch is fairly simple - provide a bit of storage and plenty of enclosed space for your animals. Try to prevent paths for animals to escape by ensuring doors and gates close automatically, or providing paths that only the citizens can traverse.
 
 ## Datapack Customization for Modpack Authors
 
 Greenhouse Gardener exposes climate materials through datapack JSON. Pack authors can add new files instead of editing the mod's built-in data.
+
+### Ranch Entity Capabilities
+
+Ranch support is controlled by Minecraft entity-type tags in:
+
+```text
+data/<namespace>/tags/entity_type/ranch/*.json
+```
+
+The Greenhouse Gardener namespace defines:
+
+| Tag | Purpose |
+| --- | --- |
+| `greenhousegardener:ranch/animals` | Designates entity types the Ranch may manage (must be descended from Animal). |
+| `greenhousegardener:ranch/excluded` | Removes entity types from Ranch management. This takes precedence over `animals`. |
+| `greenhousegardener:ranch/breedable` | Allows breeding when the animal exposes a discoverable breeding food. |
+| `greenhousegardener:ranch/feedable` | Allows the Rancher to feed adults or juveniles using discovered food. |
+| `greenhousegardener:ranch/butcherable` | Allows excess unprotected adults to be butchered. |
+| `greenhousegardener:ranch/shearable` | Allows shearing when the entity implements NeoForge's `IShearable` interface. |
+| `greenhousegardener:ranch/bucket_milkable` | Allows a guarded fake-player interaction using an empty bucket. |
+| `greenhousegardener:ranch/bowl_milkable` | Allows a guarded fake-player interaction using an empty bowl. |
+
+An entity must be in `ranch/animals`, must not be in `ranch/excluded`, and must be in the tag for a particular action. Capability tags do not designate animals by themselves.
+
+For example, a compatibility datapack can add a hypothetical yak:
+
+```json
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "exampleanimals:yak",
+      "required": false
+    }
+  ]
+}
+```
+
+Place that entry in `animals.json`, `breedable.json`, `feedable.json`, and `butcherable.json`. Add it to `bucket_milkable.json` only if interacting with the adult animal using a vanilla bucket produces a filled container. Use `"required": false` for optional-mod entity IDs so the datapack remains loadable when that mod is absent.
+
+Core MineColonies livestock is included in `ranch/excluded` by default to prevent two worker buildings from competing for the same animals. A modpack author can replace the built-in exclusions:
+
+```json
+{
+  "replace": true,
+  "values": []
+}
+```
+
+Tags are authorization as well as compatibility metadata. Adding an entity to `shearable` does not make a non-`IShearable` entity shearable, and adding an entity to a milk tag does not synthesize a milk result. Failed or unsupported interactions are abandoned safely. Aquatic animals and other non-land creatures are intentionally absent from the bundled Ranch designation.
 
 ### Climate CCU Values
 
@@ -210,5 +280,5 @@ Built-in item crafting remainders are used automatically before this datapack ma
 
 ## Dependencies
 Minecraft version 1.21.1
-MineColonies (and it's dependencies) version 1.1.1305+
+MineColonies (and its dependencies) version 1.1.1305+
 Neoforge 21.1.222+

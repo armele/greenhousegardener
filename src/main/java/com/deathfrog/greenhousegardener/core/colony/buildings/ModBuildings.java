@@ -8,8 +8,10 @@ import org.jetbrains.annotations.NotNull;
 public class ModBuildings
 {
     public static final String GREENHOUSE_ID   = "greenhouse";
+    public static final String RANCH_ID = "ranch";
 
     public static BuildingEntry greenhouse;
+    public static BuildingEntry ranch;
 
     private ModBuildings()
     {
@@ -22,6 +24,7 @@ public class ModBuildings
         return new AbstractBlockHut[] 
         {
             ModBlocks.blockHutGreenhouse.get(),
+            ModBlocks.blockHutRanch.get(),
         };
     }
 }

@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
+import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.ModJobs;
 import com.minecolonies.api.colony.jobs.registry.JobEntry;
 import com.minecolonies.apiimp.CommonMinecoloniesAPIImpl;
@@ -30,6 +31,11 @@ public final class ModJobsInitializer
           .setJobProducer(JobsHorticulturist::new)
           .setJobViewProducer(() -> DefaultJobView::new)
           .setRegistryName(ModJobs.HORTICULTURIST_ID)
+          .createJobEntry());
+        ModJobs.rancher = register(DEFERRED_REGISTER, ModJobs.RANCHER_ID.getPath(), () -> new JobEntry.Builder()
+          .setJobProducer(JobRancher::new)
+          .setJobViewProducer(() -> DefaultJobView::new)
+          .setRegistryName(ModJobs.RANCHER_ID)
           .createJobEntry());
     }
 

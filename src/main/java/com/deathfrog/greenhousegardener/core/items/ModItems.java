@@ -9,6 +9,7 @@ import com.deathfrog.greenhousegardener.core.blocks.BlockCucumber;
 import com.deathfrog.greenhousegardener.core.blocks.BlockSpinach;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutGreenhouse;
+import com.deathfrog.greenhousegardener.core.blocks.huts.BlockHutRanch;
 import com.minecolonies.api.items.ModTags;
 import com.minecolonies.api.items.ItemBlockHut;
 import com.minecolonies.core.items.ItemCrop;
@@ -31,6 +32,11 @@ public final class ModItems
     public static final @Nonnull DeferredItem<ItemBlockHut> blockHutGreenhouseItem = ITEMS.register(
       BlockHutGreenhouse.HUT_NAME,
       () -> new ItemBlockHut(ModBlocks.blockHutGreenhouse.get(), new Item.Properties()));
+
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<ItemBlockHut> blockHutRanchItem = ITEMS.register(
+      BlockHutRanch.HUT_NAME,
+      () -> new ItemBlockHut(ModBlocks.blockHutRanch.get(), new Item.Properties()));
 
     @SuppressWarnings("null")
     public static final @Nonnull DeferredItem<BlockItem> climateControlHubItem = ITEMS.register(

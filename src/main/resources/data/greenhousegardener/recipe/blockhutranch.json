@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": { "item": "structurize:sceptergold" },
+    "X": { "tag": "minecraft:planks" },
+    "H": { "item": "minecraft:hay_block" },
+    "L": { "item": "minecraft:lead" }
+  },
+  "pattern": [
+    "XXX",
+    "HBL",
+    "XXX"
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:blockhutranch"
+  }
+}

@@ -13,6 +13,8 @@ import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemV
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
 import com.deathfrog.greenhousegardener.core.items.ModCreativeTabs;
 import com.deathfrog.greenhousegardener.core.items.ModItems;
+import com.deathfrog.greenhousegardener.core.entity.EntityAIWorkRancher;
+import com.deathfrog.greenhousegardener.core.event.RancherDamageHandler;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
 import com.deathfrog.greenhousegardener.core.network.SyncGreenhouseClimateItemsMessage;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseAmbientPoofService;
@@ -25,9 +27,11 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
+import net.neoforged.neoforge.event.TagsUpdatedEvent;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(GreenhouseGardenerMod.MODID)
@@ -99,9 +103,21 @@ public class GreenhouseGardenerMod
     }
 
     @SubscribeEvent
+    public void onTagsUpdated(final TagsUpdatedEvent event)
+    {
+        EntityAIWorkRancher.invalidateFoodCaches();
+    }
+
+    @SubscribeEvent
     public void onLevelTick(final LevelTickEvent.Post event)
     {
         GreenhouseAmbientPoofService.tick(event.getLevel());
+    }
+
+    @SubscribeEvent
+    public void onLivingIncomingDamage(final LivingIncomingDamageEvent event)
+    {
+        RancherDamageHandler.onIncomingDamage(event);
     }
 
     private void onLoadComplete(final FMLLoadCompleteEvent event)

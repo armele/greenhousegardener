@@ -1,0 +1,8 @@
+{
+  "effect": true,
+  "name": "Ranchers resist more damage from animals.",
+  "levels": [
+    0.15,
+    0.30
+  ]
+}
