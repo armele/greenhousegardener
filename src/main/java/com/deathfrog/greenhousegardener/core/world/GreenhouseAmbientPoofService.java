@@ -74,6 +74,9 @@ public final class GreenhouseAmbientPoofService
         {
             final BlockPos fieldPosition = field == null ? null : field.getPosition();
             if (fieldPosition == null
+                || !level.hasChunk(
+                    SectionPos.blockToSectionCoord(fieldPosition.getX()),
+                    SectionPos.blockToSectionCoord(fieldPosition.getZ()))
                 || !module.shouldEmitConditioningParticles(level, field, colonyDay)
                 || !hasNearbyPlayer(level, fieldPosition))
             {

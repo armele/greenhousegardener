@@ -48,6 +48,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.QuartPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -67,6 +68,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPersistentModule, IBuildingEventsModule, IAltersRequiredItems, ITickingModule
 {
     private static final int MAX_FIELD_SLOTS = 4;
+    private static final int FIELD_VALIDATION_INTERVAL_TICKS = 200;
+    private static final int MAX_FIELD_VALIDATIONS_PER_MAINTENANCE = 2;
     private static final int BIOMES_LEVEL1 = 1;
     private static final int BIOMES_LEVEL2PLUS = 2;
 
@@ -107,17 +110,28 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
     private long lastMaintenanceDecayScanDay = Long.MIN_VALUE;
+    private long nextFieldValidationGameTime;
+    private int fieldValidationCursor;
 
+    /**
+     * Construct an empty biome module. Persistent field state is populated during NBT deserialization.
+     */
     public GreenhouseBiomeModule()
     {
         super();
     }
 
+    /**
+     * Emit diagnostic output when biome-module tracing is enabled.
+     *
+     * @param loggingStatement deferred logging operation
+     */
     private static void trace(final Runnable loggingStatement)
     {
         TraceUtils.dynamicTrace(ModCommands.TRACE_BIOME_MODULE, loggingStatement);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void deserializeNBT(@NotNull final HolderLookup.Provider provider, final CompoundTag compound)
     {
@@ -180,6 +194,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             : Long.MIN_VALUE;
     }
 
+    /** {@inheritDoc} */
     @SuppressWarnings("null")
     @Override
     public void serializeNBT(@NotNull final HolderLookup.Provider provider, final CompoundTag compound)
@@ -225,6 +240,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         compound.putLong(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY, lastMaintenanceDecayScanDay);
     }
 
+    /** {@inheritDoc} */
     @SuppressWarnings("null")
     @Override
     public void serializeToView(@NotNull final RegistryFriendlyByteBuf buf)
@@ -264,6 +280,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     public void onColonyTick(@NotNull final IColony colony)
     {
@@ -274,6 +291,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
                 building != null, colony != null, level != null));
             return;
         }
+
+        runScheduledFieldValidation(level);
 
         final long colonyDay = colony.getDay();
         if (lastMaintenanceDecayScanDay == colonyDay)
@@ -1236,6 +1255,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         return true;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void onDestroyed()
     {
@@ -1333,9 +1353,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     @SuppressWarnings("null")
     public List<FarmField> getManagedFields()
     {
-        cleanupInvalidOwnedFields();
         return allFarmFields().stream()
-            .filter(field -> field != null && ownedFields.contains(field.getPosition()) && hasClimateControlHub(field.getPosition()))
+            .filter(field -> field != null && ownedFields.contains(field.getPosition())
+                && validateClimateControlHub(field.getPosition()) == HubValidation.Result.VALID)
             .sorted(Comparator.comparingInt(field -> field.getPosition().distManhattan(building.getID())))
             .toList();
     }
@@ -1470,12 +1490,62 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return;
         }
 
-        final List<BlockPos> invalidFields = ownedFields.stream()
-            .filter(pos -> !hasClimateControlHub(pos))
-            .sorted(Comparator.comparing(BlockPos::asLong))
-            .toList();
+        final List<BlockPos> candidates = ownedFields.stream().sorted(Comparator.comparing(BlockPos::asLong)).toList();
+        validateOwnedFields(candidates);
+    }
+
+    /**
+     * Amortize authoritative field validation. Unloaded fields remain owned and are retried by a later pass.
+     */
+    @SuppressWarnings("null")
+    private void runScheduledFieldValidation(final ServerLevel level)
+    {
+        if (ownedFields.isEmpty() || level.getGameTime() < nextFieldValidationGameTime)
+        {
+            return;
+        }
+
+        nextFieldValidationGameTime = level.getGameTime() + FIELD_VALIDATION_INTERVAL_TICKS;
+        final List<BlockPos> fields = ownedFields.stream().sorted(Comparator.comparing(BlockPos::asLong)).toList();
+        final int count = Math.min(MAX_FIELD_VALIDATIONS_PER_MAINTENANCE, fields.size());
+        final List<BlockPos> candidates = new ArrayList<>(count);
+        for (int i = 0; i < count; i++)
+        {
+            candidates.add(fields.get((fieldValidationCursor + i) % fields.size()));
+        }
+        fieldValidationCursor = (fieldValidationCursor + count) % fields.size();
+        validateOwnedFields(candidates);
+    }
+
+    /**
+     * Validate selected ownership records without loading chunks and release only definitively invalid fields.
+     *
+     * @param candidates bounded field positions to validate
+     */
+    private void validateOwnedFields(final List<BlockPos> candidates)
+    {
+        final long startedNanos = System.nanoTime();
+        final List<BlockPos> invalidFields = new ArrayList<>();
+        int valid = 0;
+        int deferred = 0;
+        for (final BlockPos pos : candidates)
+        {
+            switch (validateClimateControlHub(pos))
+            {
+                case VALID -> valid++;
+                case INVALID -> invalidFields.add(pos);
+                case DEFERRED_UNLOADED -> deferred++;
+            }
+        }
+
         if (invalidFields.isEmpty())
         {
+            final int validCount = valid;
+            final int deferredCount = deferred;
+            trace(() -> GreenhouseGardenerMod.LOGGER.info(
+                "Colony {} - BiomeModule field validation: managed {}, checked {}, valid {}, removed 0, deferred {}, duration {} us.",
+                colonyId(), ownedFields.size(), candidates.size(), validCount, deferredCount,
+                (System.nanoTime() - startedNanos) / 1_000L));
             return;
         }
 
@@ -1486,6 +1556,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         });
         markDirty();
         building.markDirty();
+        final int validCount = valid;
+        final int deferredCount = deferred;
+        trace(() -> GreenhouseGardenerMod.LOGGER.info(
+            "Colony {} - BiomeModule field validation: managed {}, checked {}, valid {}, removed {}, deferred {}, duration {} us.",
+            colonyId(), ownedFields.size(), candidates.size(), validCount, invalidFields.size(), deferredCount,
+            (System.nanoTime() - startedNanos) / 1_000L));
     }
 
     /**
@@ -1588,7 +1664,12 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
 
         final BlockPos hubPosition = fieldPosition.below();
 
-        if (hubPosition == null) return;
+        if (!level.hasChunk(
+            SectionPos.blockToSectionCoord(hubPosition.getX()),
+            SectionPos.blockToSectionCoord(hubPosition.getZ())))
+        {
+            return;
+        }
 
         final BlockState hubState = level.getBlockState(hubPosition);
         if (!hubState.is(ModBlocks.climateControlHub.get()) || hubState.getValue(BlockClimateControlHub.CLIMATE) == visualClimate)
@@ -1607,16 +1688,35 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param fieldPosition position of the farm field anchor
      * @return true when the block below is the climate control hub
      */
-    @SuppressWarnings("null")
     private boolean hasClimateControlHub(final BlockPos fieldPosition)
+    {
+        return validateClimateControlHub(fieldPosition) == HubValidation.Result.VALID;
+    }
+
+    /**
+     * Validate a hub without ever requesting its chunk. An unloaded chunk is incomplete information, not invalid data.
+     */
+    @SuppressWarnings("null")
+    private HubValidation.Result validateClimateControlHub(final BlockPos fieldPosition)
     {
         if (building == null || fieldPosition == null)
         {
-            return false;
+            return HubValidation.Result.INVALID;
         }
 
         final Level level = building.getColony().getWorld();
-        return level != null && level.getBlockState(fieldPosition.below()).is(ModBlocks.climateControlHub.get());
+        final BlockPos hubPosition = fieldPosition.below();
+        if (level == null)
+        {
+            return HubValidation.Result.DEFERRED_UNLOADED;
+        }
+        if (!level.hasChunk(
+            SectionPos.blockToSectionCoord(hubPosition.getX()),
+            SectionPos.blockToSectionCoord(hubPosition.getZ())))
+        {
+            return HubValidation.Result.DEFERRED_UNLOADED;
+        }
+        return HubValidation.classify(true, level.getBlockState(hubPosition).is(ModBlocks.climateControlHub.get()));
     }
 
     /**
@@ -1799,16 +1899,31 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      */
     private record MaintenanceDecayStatus(long lastMaintenanceDay, long colonyDay, int daysSinceMaintenance, int daysUntilReversion)
     {
+        /**
+         * Check whether the maintenance grace period has expired.
+         *
+         * @return whether the field overlay should revert
+         */
         private boolean shouldRevert()
         {
             return daysSinceMaintenance >= maintenanceRevertDays();
         }
 
+        /**
+         * Check whether the field owner should receive a maintenance warning.
+         *
+         * @return whether the warning threshold has been reached
+         */
         private boolean shouldWarn()
         {
             return daysSinceMaintenance >= 2;
         }
 
+        /**
+         * Check whether recent maintenance still powers field conditioning.
+         *
+         * @return whether conditioning remains active
+         */
         private boolean isConditioningActive()
         {
             return daysSinceMaintenance <= 1;
@@ -2048,31 +2163,67 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             field.getRadius(Direction.SOUTH));
     }
 
+    /**
+     * Convert a block position to the origin of its containing quart-biome cell.
+     *
+     * @param pos block position to quantize
+     * @return biome-cell origin in block coordinates
+     */
     private static BlockPos quantizedBlockPos(final BlockPos pos)
     {
         return new BlockPos(quantize(pos.getX()), quantize(pos.getY()), quantize(pos.getZ()));
     }
 
+    /**
+     * Quantize one block coordinate to its containing quart-biome cell origin.
+     *
+     * @param value block coordinate
+     * @return quantized block coordinate
+     */
     private static int quantize(final int value)
     {
         return QuartPos.toBlock(QuartPos.fromBlock(value));
     }
 
+    /**
+     * Resolve the owning colony id for diagnostics.
+     *
+     * @return colony id, or {@code -1} when the module is not attached
+     */
     private int colonyId()
     {
         return building == null || building.getColony() == null ? -1 : building.getColony().getID();
     }
 
+    /**
+     * Format a position compactly for diagnostic messages.
+     *
+     * @param pos position to format
+     * @return comma-separated coordinates, or {@code "null"}
+     */
     private static String formatBlockPos(final BlockPos pos)
     {
         return pos == null ? "null" : pos.getX() + "," + pos.getY() + "," + pos.getZ();
     }
 
+    /**
+     * Format a field climate assignment for diagnostics.
+     *
+     * @param assignment assignment to format
+     * @return temperature/humidity text, or {@code "null"}
+     */
     private static String formatAssignment(final FieldBiomeAssignment assignment)
     {
         return assignment == null ? "null" : formatAssignment(assignment.temperature(), assignment.humidity());
     }
 
+    /**
+     * Format climate axes for diagnostics.
+     *
+     * @param temperature temperature axis
+     * @param humidity humidity axis
+     * @return temperature/humidity text
+     */
     private static String formatAssignment(final TemperatureSetting temperature, final HumiditySetting humidity)
     {
         return String.valueOf(temperature) + "/" + String.valueOf(humidity);
@@ -2214,13 +2365,30 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         return tags;
     }
 
+    /**
+     * Compare an optional recorded day with the current colony day.
+     *
+     * @param storedDay recorded day, or {@code null}
+     * @param colonyDay current colony day
+     * @return whether both days match
+     */
     private static boolean dayEquals(final Long storedDay, final long colonyDay)
     {
         return storedDay != null && storedDay == colonyDay;
     }
 
+    /**
+     * Stable, order-independent key for state shared by a pair of fields.
+     */
     private record FieldPairKey(BlockPos first, BlockPos second)
     {
+        /**
+         * Create a normalized immutable key for two positions.
+         *
+         * @param firstPosition first field position
+         * @param secondPosition second field position
+         * @return normalized key, or {@code null} when either position is absent
+         */
         private static FieldPairKey of(final BlockPos firstPosition, final BlockPos secondPosition)
         {
             if (firstPosition == null || secondPosition == null)
@@ -2235,12 +2403,21 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
                 : new FieldPairKey(immutableSecond, immutableFirst);
         }
 
+        /**
+         * Check whether this pair contains a field.
+         *
+         * @param fieldPosition position to find
+         * @return whether the position is part of the pair
+         */
         private boolean contains(final BlockPos fieldPosition)
         {
             return fieldPosition != null && (first.equals(fieldPosition) || second.equals(fieldPosition));
         }
     }
 
+    /**
+     * Requested temperature and humidity settings for one field.
+     */
     public record FieldBiomeAssignment(TemperatureSetting temperature, HumiditySetting humidity)
     {
         public static final FieldBiomeAssignment DEFAULT =
@@ -2261,6 +2438,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
     }
 
+    /**
+     * Supported greenhouse temperature settings and their persisted names.
+     */
     public enum TemperatureSetting
     {
         COLD("cold"), TEMPERATE("temperate"), HOT("hot");
@@ -2272,11 +2452,22 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             this.serializedName = serializedName;
         }
 
+        /**
+         * Get the stable persisted name.
+         *
+         * @return serialized setting name
+         */
         public String getSerializedName()
         {
             return serializedName;
         }
 
+        /**
+         * Resolve a persisted temperature name, defaulting safely for unknown values.
+         *
+         * @param serializedName persisted name
+         * @return matching setting, or {@link #TEMPERATE}
+         */
         public static TemperatureSetting bySerializedName(final String serializedName)
         {
             for (final TemperatureSetting setting : values())
@@ -2290,6 +2481,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
     }
 
+    /**
+     * Supported greenhouse humidity settings and their persisted names.
+     */
     public enum HumiditySetting
     {
         DRY("dry"), NORMAL("normal"), HUMID("humid");
@@ -2301,11 +2495,22 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             this.serializedName = serializedName;
         }
 
+        /**
+         * Get the stable persisted name.
+         *
+         * @return serialized setting name
+         */
         public String getSerializedName()
         {
             return serializedName;
         }
 
+        /**
+         * Resolve a persisted humidity name, defaulting safely for unknown values.
+         *
+         * @param serializedName persisted name
+         * @return matching setting, or {@link #NORMAL}
+         */
         public static HumiditySetting bySerializedName(final String serializedName)
         {
             for (final HumiditySetting setting : values())
@@ -2319,12 +2524,19 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     public void alterItemsToBeKept(final TriConsumer<Predicate<ItemStack>, Integer, Boolean> consumer)
     {
         consumer.accept(GreenhouseBiomeModule::isBiomeModifierItem, Integer.MAX_VALUE, false);
     }
 
+    /**
+     * Check whether an item can contribute to greenhouse climate modification.
+     *
+     * @param stack item stack to inspect
+     * @return whether configured climate value data exists for the item
+     */
     private static boolean isBiomeModifierItem(final ItemStack stack)
     {
         return GreenhouseClimateItemValueListener.INSTANCE.hasAnyValue(stack);
