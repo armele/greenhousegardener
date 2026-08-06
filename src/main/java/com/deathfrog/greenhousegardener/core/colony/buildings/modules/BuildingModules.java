@@ -27,23 +27,23 @@ public class BuildingModules
       new BuildingEntry.ModuleProducer<GreenhouseHumidityModule, GreenhouseHumidityModuleView>("humidity_controls", GreenhouseHumidityModule::new, () -> GreenhouseHumidityModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<WorkerBuildingModule,WorkerBuildingModuleView> HORTICULTURIST_WORK          =
-      new BuildingEntry.ModuleProducer<>("horticulturist_work", 
+      new BuildingEntry.ModuleProducer<>("gg:horticulturist_work", 
         () -> new WorkerBuildingModule(ModJobs.horticulturist.get(), Skill.Creativity, Skill.Knowledge, false, (b) -> 1),
         () -> WorkerBuildingModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<WorkerBuildingModule, WorkerBuildingModuleView> RANCHER_WORK =
-      new BuildingEntry.ModuleProducer<>("rancher_work",
+      new BuildingEntry.ModuleProducer<>("gg:rancher_work",
         () -> new WorkerBuildingModule(ModJobs.rancher.get(), Skill.Strength, Skill.Athletics, false, ignored -> 1),
         () -> WorkerBuildingModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<RanchHerdingModule, com.minecolonies.api.colony.buildings.modules.IBuildingModuleView> RANCH_HERDING =
-      new BuildingEntry.ModuleProducer<>("ranch_herding", RanchHerdingModule::new, null);
+      new BuildingEntry.ModuleProducer<>("gg:ranch_herding", RanchHerdingModule::new, null);
 
     public static final BuildingEntry.ModuleProducer<RanchHerdListModule, RanchHerdListModuleView> RANCH_HERD_LIST =
-      new BuildingEntry.ModuleProducer<>("ranch_herd_list", RanchHerdListModule::new, () -> RanchHerdListModuleView::new);
+      new BuildingEntry.ModuleProducer<>("gg:ranch_herd_list", RanchHerdListModule::new, () -> RanchHerdListModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<SettingsModule, SettingsModuleView> RANCH_SETTINGS =
-      new BuildingEntry.ModuleProducer<>("ranch_settings",
+      new BuildingEntry.ModuleProducer<>("gg:ranch_settings",
         () -> (SettingsModule) new SettingsModule()
           .with(AbstractBuilding.BREEDING, new BoolSetting(true))
           .with(BuildingRanch.FEEDING, new BoolSetting(true))
