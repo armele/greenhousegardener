@@ -18,13 +18,13 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
 public class BuildingModules
 {
     public static final BuildingEntry.ModuleProducer<GreenhouseBiomeModule, GreenhouseBiomeModuleView> BIOME_MODULE =
-      new BuildingEntry.ModuleProducer<GreenhouseBiomeModule, GreenhouseBiomeModuleView>("biome_settings", GreenhouseBiomeModule::new, () -> GreenhouseBiomeModuleView::new);
+      new BuildingEntry.ModuleProducer<GreenhouseBiomeModule, GreenhouseBiomeModuleView>("gg:biome_settings", GreenhouseBiomeModule::new, () -> GreenhouseBiomeModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<GreenhouseTemperatureModule, GreenhouseTemperatureModuleView> TEMPERATURE_MODULE =
-      new BuildingEntry.ModuleProducer<GreenhouseTemperatureModule, GreenhouseTemperatureModuleView>("temperature_controls", GreenhouseTemperatureModule::new, () -> GreenhouseTemperatureModuleView::new);
+      new BuildingEntry.ModuleProducer<GreenhouseTemperatureModule, GreenhouseTemperatureModuleView>("gg:temperature_controls", GreenhouseTemperatureModule::new, () -> GreenhouseTemperatureModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<GreenhouseHumidityModule, GreenhouseHumidityModuleView> HUMIDITY_MODULE =
-      new BuildingEntry.ModuleProducer<GreenhouseHumidityModule, GreenhouseHumidityModuleView>("humidity_controls", GreenhouseHumidityModule::new, () -> GreenhouseHumidityModuleView::new);
+      new BuildingEntry.ModuleProducer<GreenhouseHumidityModule, GreenhouseHumidityModuleView>("gg:humidity_controls", GreenhouseHumidityModule::new, () -> GreenhouseHumidityModuleView::new);
 
     public static final BuildingEntry.ModuleProducer<WorkerBuildingModule,WorkerBuildingModuleView> HORTICULTURIST_WORK          =
       new BuildingEntry.ModuleProducer<>("gg:horticulturist_work", 
