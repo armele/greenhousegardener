@@ -2,19 +2,19 @@
   "variants": {
     "facing=east": {
       "model": "greenhousegardener:block/blockhutgreenhouse",
-      "y": 90
+      "y": 270
     },
     "facing=south": {
       "model": "greenhousegardener:block/blockhutgreenhouse",
-      "y": 180
+      "y": 0
     },
     "facing=west": {
       "model": "greenhousegardener:block/blockhutgreenhouse",
-      "y": 270
+      "y": 90
     },
     "facing=north": {
       "model": "greenhousegardener:block/blockhutgreenhouse",
-      "y": 0
+      "y": 180
     }
   }
 }
