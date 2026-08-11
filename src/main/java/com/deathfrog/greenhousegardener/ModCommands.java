@@ -155,8 +155,17 @@ public final class ModCommands
             IntegerArgumentType.getInteger(context, ARG_Y),
             IntegerArgumentType.getInteger(context, ARG_Z));
 
-        if (!canHighlightField(player, fieldPosition))
+        final FieldHighlightAccess access = getFieldHighlightAccess(player, fieldPosition);
+        if (access == FieldHighlightAccess.NOT_FOUND)
         {
+            context.getSource().sendFailure(Component.literal(
+                "No greenhouse field available for highlighting was found at " + formatPosition(fieldPosition) + "."));
+            return 0;
+        }
+        if (access == FieldHighlightAccess.DENIED)
+        {
+            context.getSource().sendFailure(Component.literal(
+                "You do not have permission to highlight the greenhouse field at " + formatPosition(fieldPosition) + "."));
             return 0;
         }
 
@@ -165,26 +174,40 @@ public final class ModCommands
         return Command.SINGLE_SUCCESS;
     }
 
-    private static boolean canHighlightField(final ServerPlayer player, final BlockPos fieldPosition)
+    private static FieldHighlightAccess getFieldHighlightAccess(final ServerPlayer player, final BlockPos fieldPosition)
     {
+        final boolean bypassColonyPermissions = hasCommandPermission(player.createCommandSourceStack());
+        boolean found = false;
+
         for (final IColony colony : IColonyManager.getInstance().getColonies(player.level()))
         {
-            if (!colony.getPermissions().hasPermission(player, Action.RECEIVE_MESSAGES))
-            {
-                continue;
-            }
-
             for (final IBuilding building : colony.getServerBuildingManager().getBuildings().values())
             {
                 final GreenhouseBiomeModule module = building.getModule(GreenhouseBiomeModule.class, candidate -> true);
-                if (module != null && module.isOwned(fieldPosition))
+                if (module != null && module.isVisibleField(fieldPosition))
                 {
-                    return true;
+                    found = true;
+                    if (bypassColonyPermissions || colony.getPermissions().hasPermission(player, Action.RECEIVE_MESSAGES))
+                    {
+                        return FieldHighlightAccess.ALLOWED;
+                    }
                 }
             }
         }
 
-        return false;
+        return found ? FieldHighlightAccess.DENIED : FieldHighlightAccess.NOT_FOUND;
+    }
+
+    private static String formatPosition(final BlockPos position)
+    {
+        return position.getX() + ", " + position.getY() + ", " + position.getZ();
+    }
+
+    private enum FieldHighlightAccess
+    {
+        ALLOWED,
+        DENIED,
+        NOT_FOUND
     }
 
     private static Component directionMessage(final ServerPlayer player, final BlockPos fieldPosition)

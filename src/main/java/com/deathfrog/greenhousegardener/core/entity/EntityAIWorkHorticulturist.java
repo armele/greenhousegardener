@@ -28,8 +28,6 @@ import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.FieldBiomeAssignment;
-import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
-import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
@@ -42,6 +40,7 @@ import com.deathfrog.greenhousegardener.core.world.biomeservice.BiomeConversionC
 import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeClimateClassifier;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.IBiomeDimensions;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayCheckResult;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.OverlayResult;
@@ -515,10 +514,14 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 continue;
             }
 
-            if (GreenhouseBiomeOverlayService.needsOverlay(level, biomeFootprint(field), climate))
+            final OverlayCheckResult overlayCheck = GreenhouseBiomeOverlayService.checkOverlay(
+                level,
+                biomeFootprint(field),
+                climate,
+                module.getAppliedBiomes());
+            if (overlayCheck.needsOverlay())
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
-                final OverlayCheckResult overlayCheck = GreenhouseBiomeOverlayService.checkOverlay(level, biomeFootprint(field), climate);
                 if (isMaintenanceOverlayRepair(module, field, overlayCheck))
                 {
                     trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist treating field {} overlay mismatch as maintenance repair: {}/{} cells mismatched.",
@@ -1356,6 +1359,22 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         final FieldBiomeAssignment assignment = module.getAssignment(fieldPosition);
+        final GreenhouseClimate climate = climate(assignment);
+        final FieldBiomeFootprint footprint = biomeFootprint(currentField);
+        final OverlayResult migrationResult = GreenhouseBiomeOverlayService.migrateLegacyOverlay(
+            level,
+            footprint,
+            climate,
+            module.getAppliedBiomes());
+        if (migrationResult.changedCells() > 0)
+        {
+            module.markDirty();
+            building.markDirty();
+            trace(() -> GreenhouseGardenerMod.LOGGER.info(
+                "Colony {} - Horticulturist migrated {} legacy biome cells for field {} without CCU cost.",
+                building.getColony().getID(), migrationResult.changedCells(), formatCurrentField()));
+        }
+
         final BiomeConversionCost maintenanceCost = biomeMaintenanceCost(level, currentField, assignment, module, maintenanceDiscount());
         final GreenhouseTemperatureModule temperatureModule = safeTemperatureModule();
         final GreenhouseHumidityModule humidityModule = safeHumidityModule();
@@ -1387,8 +1406,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return DECIDE;
         }
 
-        final GreenhouseClimate climate = climate(assignment);
-        final FieldBiomeFootprint footprint = biomeFootprint(currentField);
         final OverlayCheckResult overlayCheck = GreenhouseBiomeOverlayService.checkOverlay(level, footprint, climate);
         if (overlayCheck.hadUnloadedChunks())
         {
@@ -2359,13 +2376,13 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 .getHolder(ResourceKey.create(Registries.BIOME, naturalBiomeId));
             if (naturalBiome.isPresent())
             {
-                return climate(naturalBiomeId, naturalBiome.get().value());
+                return GreenhouseBiomeClimateClassifier.classify(naturalBiomeId, naturalBiome.get());
             }
         }
 
         final Holder<Biome> currentBiome = level.getBiome(pos);
         final ResourceLocation currentBiomeId = currentBiome.unwrapKey().map(ResourceKey::location).orElse(null);
-        return climate(currentBiomeId, currentBiome.value());
+        return GreenhouseBiomeClimateClassifier.classify(currentBiomeId, currentBiome);
     }
 
     /**
@@ -2375,27 +2392,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      * @param biome biome instance to inspect
      * @return corresponding greenhouse climate axes
      */
-    private static GreenhouseClimate climate(final ResourceLocation biomeId, final Biome biome)
-    {
-        if (biomeId != null)
-        {
-            final Optional<GreenhouseClimate> configuredReferenceClimate = GreenhouseBiomeOverlayService.climateFor(biomeId);
-            if (configuredReferenceClimate.isPresent())
-            {
-                return configuredReferenceClimate.get();
-            }
-        }
-
-        final Biome.ClimateSettings settings = biome.getModifiedClimateSettings();
-        final TemperatureSetting temperature = settings.temperature() <= 0.3F
-            ? TemperatureSetting.COLD
-            : settings.temperature() >= 0.9F ? TemperatureSetting.HOT : TemperatureSetting.TEMPERATE;
-        final HumiditySetting humidity = settings.downfall() <= 0.3F
-            ? HumiditySetting.DRY
-            : settings.downfall() >= 0.8F ? HumiditySetting.HUMID : HumiditySetting.NORMAL;
-        return new GreenhouseClimate(temperature, humidity);
-    }
-
     /**
      * Convert step-weighted X/Z blocks into rounded-up ledger cost with skill scaling and an optional discount.
      *

@@ -3,6 +3,7 @@ package com.deathfrog.greenhousegardener.core.world.biomeservice;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
 
@@ -34,18 +36,39 @@ public final class GreenhouseBiomeOverlayService
 {
     public static final int DEFAULT_VERTICAL_RANGE = 8;
     private static final int BIOME_LOOKUP_PADDING = 4;
-    private static final ResourceLocation BIOME_COLD_DRY = ResourceLocation.withDefaultNamespace("snowy_slopes");
-    private static final ResourceLocation BIOME_COLD_NORMAL = ResourceLocation.withDefaultNamespace("snowy_plains");
-    private static final ResourceLocation BIOME_COLD_HUMID = ResourceLocation.withDefaultNamespace("old_growth_pine_taiga");
-    private static final ResourceLocation BIOME_TEMPERATE_DRY = ResourceLocation.withDefaultNamespace("savanna");
-    private static final ResourceLocation BIOME_TEMPERATE_NORMAL = ResourceLocation.withDefaultNamespace("plains");
-    private static final ResourceLocation BIOME_TEMPERATE_HUMID = ResourceLocation.withDefaultNamespace("swamp");
-    private static final ResourceLocation BIOME_HOT_DRY = ResourceLocation.withDefaultNamespace("desert");
-    private static final ResourceLocation BIOME_HOT_NORMAL = ResourceLocation.withDefaultNamespace("sparse_jungle");
-    private static final ResourceLocation BIOME_HOT_HUMID = ResourceLocation.withDefaultNamespace("jungle");
+    private static final ResourceLocation BIOME_COLD_DRY = referenceBiome("cold_dry");
+    private static final ResourceLocation BIOME_COLD_NORMAL = referenceBiome("cold_normal");
+    private static final ResourceLocation BIOME_COLD_HUMID = referenceBiome("cold_humid");
+    private static final ResourceLocation BIOME_TEMPERATE_DRY = referenceBiome("temperate_dry");
+    private static final ResourceLocation BIOME_TEMPERATE_NORMAL = referenceBiome("temperate_normal");
+    private static final ResourceLocation BIOME_TEMPERATE_HUMID = referenceBiome("temperate_humid");
+    private static final ResourceLocation BIOME_HOT_DRY = referenceBiome("hot_dry");
+    private static final ResourceLocation BIOME_HOT_NORMAL = referenceBiome("hot_normal");
+    private static final ResourceLocation BIOME_HOT_HUMID = referenceBiome("hot_humid");
+    private static final Map<ResourceLocation, GreenhouseClimate> LEGACY_REFERENCE_CLIMATES = legacyReferenceClimates();
 
     private GreenhouseBiomeOverlayService()
     {
+    }
+
+    private static ResourceLocation referenceBiome(final @Nonnull String path)
+    {
+        return ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, path);
+    }
+
+    private static Map<ResourceLocation, GreenhouseClimate> legacyReferenceClimates()
+    {
+        final Map<ResourceLocation, GreenhouseClimate> climates = new HashMap<>();
+        climates.put(ResourceLocation.withDefaultNamespace("snowy_slopes"), new GreenhouseClimate(TemperatureSetting.COLD, HumiditySetting.DRY));
+        climates.put(ResourceLocation.withDefaultNamespace("snowy_plains"), new GreenhouseClimate(TemperatureSetting.COLD, HumiditySetting.NORMAL));
+        climates.put(ResourceLocation.withDefaultNamespace("old_growth_pine_taiga"), new GreenhouseClimate(TemperatureSetting.COLD, HumiditySetting.HUMID));
+        climates.put(ResourceLocation.withDefaultNamespace("savanna"), new GreenhouseClimate(TemperatureSetting.TEMPERATE, HumiditySetting.DRY));
+        climates.put(ResourceLocation.withDefaultNamespace("plains"), new GreenhouseClimate(TemperatureSetting.TEMPERATE, HumiditySetting.NORMAL));
+        climates.put(ResourceLocation.withDefaultNamespace("swamp"), new GreenhouseClimate(TemperatureSetting.TEMPERATE, HumiditySetting.HUMID));
+        climates.put(ResourceLocation.withDefaultNamespace("desert"), new GreenhouseClimate(TemperatureSetting.HOT, HumiditySetting.DRY));
+        climates.put(ResourceLocation.withDefaultNamespace("sparse_jungle"), new GreenhouseClimate(TemperatureSetting.HOT, HumiditySetting.NORMAL));
+        climates.put(ResourceLocation.withDefaultNamespace("jungle"), new GreenhouseClimate(TemperatureSetting.HOT, HumiditySetting.HUMID));
+        return Map.copyOf(climates);
     }
 
     /**
@@ -312,7 +335,7 @@ public final class GreenhouseBiomeOverlayService
     }
 
     /**
-     * Resolve the vanilla biome used to represent a requested greenhouse climate.
+     * Resolve the private reference biome used to represent a requested greenhouse climate.
      *
      * @param climate the desired greenhouse climate
      * @return the resource location of the overlay biome
@@ -367,6 +390,103 @@ public final class GreenhouseBiomeOverlayService
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Resolve an old vanilla overlay reference without classifying naturally occurring vanilla biomes as overlays.
+     */
+    public static Optional<GreenhouseClimate> legacyClimateFor(final ResourceLocation biomeId)
+    {
+        return Optional.ofNullable(LEGACY_REFERENCE_CLIMATES.get(biomeId));
+    }
+
+    /**
+     * Check whether a biome is either the current or legacy representation of a climate.
+     */
+    public static boolean representsClimate(final ResourceLocation biomeId, final GreenhouseClimate climate)
+    {
+        return biomeId != null && climate != null
+            && (biomeId.equals(biomeFor(climate)) || climate.equals(LEGACY_REFERENCE_CLIMATES.get(biomeId)));
+    }
+
+    /**
+     * Check whether both the live cell and its persisted applied-biome entry are the same legacy climate.
+     * Untracked cells are not legacy overlays, even when their naturally generated biome happens to be an old
+     * reference biome.
+     */
+    static boolean isTrackedLegacy(
+        final ResourceLocation currentBiomeId,
+        final ResourceLocation trackedBiomeId,
+        final GreenhouseClimate climate)
+    {
+        return currentBiomeId != null && trackedBiomeId != null && climate != null
+            && climate.equals(LEGACY_REFERENCE_CLIMATES.get(currentBiomeId))
+            && climate.equals(LEGACY_REFERENCE_CLIMATES.get(trackedBiomeId));
+    }
+
+    /**
+     * Replace legacy reference biome cells during an ordinary maintenance visit without recapturing
+     * those artificial cells as natural biomes.
+     */
+    @SuppressWarnings("null")
+    public static OverlayResult migrateLegacyOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final GreenhouseClimate climate,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
+        if (level == null || footprint == null || climate == null || appliedBiomes == null)
+        {
+            return OverlayResult.EMPTY;
+        }
+
+        final ResourceLocation targetBiomeId = biomeFor(climate);
+        final Holder.Reference<Biome> targetBiome = biomeHolder(level, targetBiomeId);
+        final BoundingBox targetRegion = footprint.paddedBiomeRegion();
+        final ChunkSelection chunkSelection = selectedChunks(level, targetRegion, true);
+        final Set<BlockPos> changedCells = new HashSet<>();
+
+        for (final ChunkAccess chunk : chunkSelection.chunks())
+        {
+            chunk.fillBiomesFromNoise((quartX, quartY, quartZ, sampler) -> {
+                final BlockPos cellPos = quantizedCell(quartX, quartY, quartZ);
+                if (cellPos == null || !targetRegion.isInside(cellPos))
+                {
+                    return chunk.getNoiseBiome(quartX, quartY, quartZ);
+                }
+
+                final Holder<Biome> currentBiome = chunk.getNoiseBiome(quartX, quartY, quartZ);
+                final ResourceLocation currentBiomeId = holderId(currentBiome).orElse(null);
+                final ResourceLocation trackedBiomeId = appliedBiomes.get(cellPos);
+                if (!representsClimate(trackedBiomeId, climate))
+                {
+                    return currentBiome;
+                }
+
+                if (targetBiomeId.equals(currentBiomeId))
+                {
+                    appliedBiomes.put(cellPos, targetBiomeId);
+                    return currentBiome;
+                }
+                if (climate.equals(LEGACY_REFERENCE_CLIMATES.get(currentBiomeId)))
+                {
+                    appliedBiomes.put(cellPos, targetBiomeId);
+                    changedCells.add(cellPos);
+                    return targetBiome;
+                }
+                return currentBiome;
+            }, level.getChunkSource().randomState().sampler());
+            if (!changedCells.isEmpty())
+            {
+                chunk.setUnsaved(true);
+            }
+        }
+
+        if (!changedCells.isEmpty())
+        {
+            resendBiomes(level, chunkSelection.chunks());
+        }
+        return new OverlayResult(changedCells.size(), chunkSelection.chunks().size(), chunkSelection.hadUnloadedChunks());
     }
 
     /**
@@ -441,6 +561,19 @@ public final class GreenhouseBiomeOverlayService
         final FieldBiomeFootprint footprint,
         final GreenhouseClimate climate)
     {
+        return checkOverlay(level, footprint, climate, null);
+    }
+
+    /**
+     * Inspect an overlay while accepting legacy reference cells only when module persistence proves that
+     * Greenhouse Gardener previously applied them.
+     */
+    public static OverlayCheckResult checkOverlay(
+        final ServerLevel level,
+        final FieldBiomeFootprint footprint,
+        final GreenhouseClimate climate,
+        final Map<BlockPos, ResourceLocation> appliedBiomes)
+    {
         if (level == null || footprint == null || climate == null)
         {
             return OverlayCheckResult.COMPLETE;
@@ -483,7 +616,10 @@ public final class GreenhouseBiomeOverlayService
 
                         loadedCells++;
                         final Optional<ResourceLocation> currentBiomeId = holderId(chunk.getNoiseBiome(quartX, quartY, quartZ));
-                        if (currentBiomeId.isEmpty() || !targetBiomeId.equals(currentBiomeId.get()))
+                        final boolean current = currentBiomeId.isPresent() && targetBiomeId.equals(currentBiomeId.get());
+                        final boolean trackedLegacy = currentBiomeId.isPresent() && appliedBiomes != null
+                            && isTrackedLegacy(currentBiomeId.get(), appliedBiomes.get(cellPos), climate);
+                        if (!current && !trackedLegacy)
                         {
                             mismatchedCells++;
                         }

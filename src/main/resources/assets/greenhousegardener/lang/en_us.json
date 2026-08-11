@@ -148,5 +148,14 @@
   "greenhousegardener.configuration.conversioncost" : "How many CCU are needed to convert and maintain a greenhouse?",
   "greenhousegardener.configuration.notifications" : "Notification Settings",
   "greenhousegardener.configuration.maintenance" : "Maintenance Settings",
-  "greenhousegardener.configuration.other" : "Other settings"
+  "greenhousegardener.configuration.other" : "Other settings",
+  "biome.greenhousegardener.cold_humid": "Conditioned Cold Humid",
+  "biome.greenhousegardener.cold_dry": "Conditioned Cold Dry",
+  "biome.greenhousegardener.cold_normal": "Conditioned Cold Normal",
+  "biome.greenhousegardener.hot_humid": "Conditioned Hot Humid",
+  "biome.greenhousegardener.hot_dry": "Conditioned Hot Dry",
+  "biome.greenhousegardener.hot_normal": "Conditioned Hot Normal",
+  "biome.greenhousegardener.temperate_humid": "Conditioned Temperate Humid",
+  "biome.greenhousegardener.temperate_dry": "Conditioned Temperate Dry",
+  "biome.greenhousegardener.temperate_normal": "Conditioned Temperate Normal"
 }

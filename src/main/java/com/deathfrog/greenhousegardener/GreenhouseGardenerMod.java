@@ -18,6 +18,7 @@ import com.deathfrog.greenhousegardener.core.event.RancherDamageHandler;
 import com.deathfrog.greenhousegardener.core.network.NetworkHandler;
 import com.deathfrog.greenhousegardener.core.network.SyncGreenhouseClimateItemsMessage;
 import com.deathfrog.greenhousegardener.core.world.GreenhouseAmbientPoofService;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseReferenceBiomeValidator;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -106,6 +107,10 @@ public class GreenhouseGardenerMod
     public void onTagsUpdated(final TagsUpdatedEvent event)
     {
         EntityAIWorkRancher.invalidateFoodCaches();
+        if (event.shouldUpdateStaticData())
+        {
+            GreenhouseReferenceBiomeValidator.validate(event.getRegistryAccess());
+        }
     }
 
     @SubscribeEvent

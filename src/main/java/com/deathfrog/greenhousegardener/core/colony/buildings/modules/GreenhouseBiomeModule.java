@@ -30,6 +30,7 @@ import com.deathfrog.greenhousegardener.core.util.TraceUtils;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.FieldBiomeFootprint;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeOverlayService;
 import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseClimate;
+import com.deathfrog.greenhousegardener.core.world.biomeservice.GreenhouseBiomeClimateClassifier;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildingextensions.IBuildingExtension;
 import com.minecolonies.api.colony.buildings.IBuilding;
@@ -1406,7 +1407,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param fieldPosition position of the farm field anchor
      * @return true when the field is owned here or eligible to be claimed here
      */
-    private boolean isVisibleField(final BlockPos fieldPosition)
+    public boolean isVisibleField(final BlockPos fieldPosition)
     {
         if (fieldPosition == null || !hasClimateControlHub(fieldPosition))
         {
@@ -2107,13 +2108,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
                     .getHolder(ResourceKey.create(Registries.BIOME, naturalBiomeId));
                 if (naturalBiome.isPresent())
                 {
-                    return climate(naturalBiomeId, naturalBiome.get().value());
+                    return GreenhouseBiomeClimateClassifier.classify(naturalBiomeId, naturalBiome.get());
                 }
             }
 
             final Holder<Biome> currentBiome = level.getBiome(pos);
             final ResourceLocation currentBiomeId = currentBiome.unwrapKey().map(ResourceKey::location).orElse(null);
-            return climate(currentBiomeId, currentBiome.value());
+            return GreenhouseBiomeClimateClassifier.classify(currentBiomeId, currentBiome);
         }
 
         return climate(FieldBiomeAssignment.DEFAULT);
@@ -2126,27 +2127,6 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param biome biome instance to inspect
      * @return corresponding greenhouse climate axes
      */
-    private static GreenhouseClimate climate(final ResourceLocation biomeId, final Biome biome)
-    {
-        if (biomeId != null)
-        {
-            final Optional<GreenhouseClimate> configuredReferenceClimate = GreenhouseBiomeOverlayService.climateFor(biomeId);
-            if (configuredReferenceClimate.isPresent())
-            {
-                return configuredReferenceClimate.get();
-            }
-        }
-
-        final Biome.ClimateSettings settings = biome.getModifiedClimateSettings();
-        final TemperatureSetting temperature = settings.temperature() <= 0.3F
-            ? TemperatureSetting.COLD
-            : settings.temperature() >= 0.9F ? TemperatureSetting.HOT : TemperatureSetting.TEMPERATE;
-        final HumiditySetting humidity = settings.downfall() <= 0.3F
-            ? HumiditySetting.DRY
-            : settings.downfall() >= 0.8F ? HumiditySetting.HUMID : HumiditySetting.NORMAL;
-        return new GreenhouseClimate(temperature, humidity);
-    }
-
     /**
      * Build the exact field footprint used by biome overlay operations.
      *
