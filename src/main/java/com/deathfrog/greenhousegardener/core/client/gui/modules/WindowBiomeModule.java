@@ -291,13 +291,13 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
             if (highlightButton != null)
             {
                 highlightButton.setHandler(button -> highlightField(field.position()));
-                addPositionTooltip(highlightButton, field);
+                addPositionTooltip(highlightButton, field, draft);
             }
 
-            addPositionTooltip(tempDropdown, field);
-            addPositionTooltip(humidityDropdown, field);
-            addPositionTooltip(seedIcon, field);
-            addPositionTooltip(ownedCheckbox, field);
+            addPositionTooltip(tempDropdown, field, draft);
+            addPositionTooltip(humidityDropdown, field, draft);
+            addPositionTooltip(seedIcon, field, draft);
+            addPositionTooltip(ownedCheckbox, field, draft);
         }
         finally
         {
@@ -707,8 +707,10 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      *
      * @param pane pane receiving the tooltip
      * @param field field displayed by the row
+     * @param draft currently requested field settings
      */
-    private static void addPositionTooltip(final Pane pane, final FieldBiomeView field)
+    @SuppressWarnings("null")
+    private static void addPositionTooltip(final Pane pane, final FieldBiomeView field, final DraftField draft)
     {
         final BlockPos position = field.position();
         final MutableComponent tooltip = Component.translatable(
@@ -717,7 +719,12 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
             position.getY(),
             position.getZ());
 
-        if (field.owned() && field.daysSinceLastMaintenance() >= 0)
+        if (draft.owned() && !isModified(field, draft.temperature(), draft.humidity()))
+        {
+            tooltip.append("\n").append(Component.translatable(
+                "com.greenhousegardener.core.gui.biome.maintenance_not_required"));
+        }
+        else if (field.owned() && field.daysSinceLastMaintenance() >= 0)
         {
             tooltip.append("\n").append(maintenanceTooltipLine(field.daysSinceLastMaintenance()));
         }

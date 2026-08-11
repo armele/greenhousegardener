@@ -68,6 +68,7 @@
   "com.greenhousegardener.core.gui.biome.field_last_maintained.today": "Field Last Maintained: Today",
   "com.greenhousegardener.core.gui.biome.field_last_maintained.day_ago": "Field Last Maintained: 1 day ago",
   "com.greenhousegardener.core.gui.biome.field_last_maintained.days_ago": "Field Last Maintained: %s days ago",
+  "com.greenhousegardener.core.gui.biome.maintenance_not_required": "Biome maintenance not required.",
   "com.greenhousegardener.core.gui.biome.temperature": "Temp.",
   "com.greenhousegardener.core.gui.biome.temperature.cold": "Cold",
   "com.greenhousegardener.core.gui.biome.temperature.temperate": "Temperate",
