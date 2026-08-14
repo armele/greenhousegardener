@@ -1,12 +1,11 @@
 package com.deathfrog.greenhousegardener.core.event;
 
-import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.BuildingModules;
 import com.deathfrog.greenhousegardener.core.entity.EntityAIWorkRancher;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.util.StatsUtil;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.Animal;
@@ -18,9 +17,6 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 public final class RancherDamageHandler
 {
     private static final String RANCH_ATTACKED_BY = "ranch_attacked_by";
-
-    public static final ResourceLocation ANIMAL_RESISTANCE =
-        ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "effects/rancher_animal_resistance");
 
     private static final double BASE_MITIGATION = 0.20D;
     private static final double MAX_MITIGATION = 0.80D;
@@ -71,7 +67,7 @@ public final class RancherDamageHandler
         final int primarySkill = job.getCitizen().getCitizenSkillHandler()
             .getLevel(workBuilding.getModule(BuildingModules.RANCHER_WORK).getPrimarySkill());
         final double researchMitigation = job.getCitizen().getColony().getResearchManager()
-            .getResearchEffects().getEffectStrength(ANIMAL_RESISTANCE);
+            .getResearchEffects().getEffectStrength(ModResearch.RESEARCH_RANCHER_ANIMAL_RESISTANCE);
         final double mitigation = calculateMitigation(primarySkill, researchMitigation);
         final float mitigatedDamage = (float) (event.getAmount() * (1.0D - mitigation));
 

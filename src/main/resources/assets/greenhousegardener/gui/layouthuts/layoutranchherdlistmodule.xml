@@ -4,7 +4,8 @@
     <text id="title" size="170 11" pos="10 13" textalign="MIDDLE" color="black"
         label="$(com.greenhousegardener.core.gui.modules.ranch_herds)"/>
     <text id="capacity" size="170 11" pos="10 31" textalign="MIDDLE" color="black"/>
-    <list id="herds" size="170 174" pos="10 51"
+    <text id="typeCapacity" size="170 11" pos="10 43" textalign="MIDDLE" color="black"/>
+    <list id="herds" size="170 162" pos="10 63"
         emptytext="$(com.greenhousegardener.core.gui.ranch_herds.empty)" emptycolor="black">
         <box size="100% 17" linewidth="1">
             <text id="animal" size="79 12" pos="3 2" color="black"/>

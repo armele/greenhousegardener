@@ -2,10 +2,12 @@ package com.deathfrog.greenhousegardener.core.entity;
 
 import com.google.common.reflect.TypeToken;
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
+import com.deathfrog.greenhousegardener.apiimp.initializer.InteractionInitializer;
 import com.deathfrog.greenhousegardener.core.ModTags;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.RanchBreedingFood;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.RanchHerdingModule;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.RanchHerdListModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.RanchShearability;
 import com.deathfrog.greenhousegardener.core.event.RancherDamageHandler;
 import com.deathfrog.greenhousegardener.core.event.RancherEncounterSafety;
@@ -16,6 +18,8 @@ import com.minecolonies.api.colony.requestsystem.token.IToken;
 import com.minecolonies.api.entity.ai.statemachine.AITarget;
 import com.minecolonies.api.entity.ai.statemachine.states.IAIState;
 import com.minecolonies.api.entity.citizen.VisibleCitizenStatus;
+import com.minecolonies.api.colony.interactionhandling.ChatPriority;
+import com.minecolonies.core.colony.interactionhandling.StandardInteraction;
 import com.minecolonies.api.equipment.ModEquipmentTypes;
 import com.minecolonies.api.equipment.registry.EquipmentTypeEntry;
 import com.minecolonies.api.util.InventoryUtils;
@@ -36,6 +40,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import org.jetbrains.annotations.NotNull;
 
@@ -206,7 +211,16 @@ public class EntityAIWorkRancher extends AbstractEntityAIHerder<JobRancher, Buil
             byType.computeIfAbsent(animal.getType(), ignored -> new ArrayList<>()).add(animal);
         }
 
-        final List<Map.Entry<EntityType<?>, List<Animal>>> herds = new ArrayList<>(byType.entrySet());
+        final RanchHerdListModule herdListModule = building.getModule(RanchHerdListModule.class);
+        herdListModule.reconcileEntityTypes(byType.keySet());
+        final boolean tooManyTypes = herdListModule.hasUnsupportedTypes();
+        updateHerdTypeInteraction(tooManyTypes, herdListModule.getSupportedTypeCapacity());
+
+        @SuppressWarnings("null")
+        final List<Map.Entry<EntityType<?>, List<Animal>>> herds = byType.entrySet().stream()
+            .filter(herd -> herdListModule.isSupported(herd.getKey()))
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            
         for (int i = herds.size() - 1; i > 0; i--)
         {
             Collections.swap(herds, i, worker.getRandom().nextInt(i + 1));
@@ -250,7 +264,8 @@ public class EntityAIWorkRancher extends AbstractEntityAIHerder<JobRancher, Buil
             }
 
             module.select(type, foods, RanchHerdingModule.Action.BREED);
-            final boolean breedingNeeded = building.getSetting(AbstractBuilding.BREEDING).getValue()
+            final boolean breedingNeeded = !tooManyTypes
+                && building.getSetting(AbstractBuilding.BREEDING).getValue()
                 && (animals.size() < herdCapacity || animals.size() == herdCapacity && butcheringEnabled)
                 && !foods.isEmpty()
                 && searchForAnimals(animal -> module.isCompatible(animal) && isBreedAble(animal)).size() >= 2;
@@ -265,14 +280,6 @@ public class EntityAIWorkRancher extends AbstractEntityAIHerder<JobRancher, Buil
             if (breedingNeeded)
             {
                 requestBreedingFood(foods.getFirst());
-            }
-
-            module.select(type, foods, RanchHerdingModule.Action.BUTCHER);
-            if (butcheringEnabled
-                && hasButcherableAdult(butcherable)
-                && worker.getRandom().nextDouble() < chanceToButcher(animals))
-            {
-                return foundTask(HERDER_BUTCHER);
             }
 
             module.select(type, foods, RanchHerdingModule.Action.FEED);
@@ -328,6 +335,23 @@ public class EntityAIWorkRancher extends AbstractEntityAIHerder<JobRancher, Buil
         }
         worker.getCitizenData().setVisibleStatus(VisibleCitizenStatus.HOUSE);
         return IDLE;
+    }
+
+    /**
+     * Maintains one blocking interaction while more managed entity types are
+     * present than this Ranch can support.
+     */
+    private void updateHerdTypeInteraction(final boolean overloaded, final int supportedTypes)
+    {
+        final boolean wasOverloaded = job.hasHerdTypeOverload();
+        job.setHerdTypeOverload(overloaded);
+        if (overloaded && !wasOverloaded)
+        {
+            worker.getCitizenData().triggerInteraction(new StandardInteraction(
+                Component.translatable(InteractionInitializer.RANCH_TOO_MANY_ANIMAL_TYPES, supportedTypes),
+                Component.translatable(InteractionInitializer.RANCH_TOO_MANY_ANIMAL_TYPES_TITLE),
+                ChatPriority.BLOCKING));
+        }
     }
 
     /**

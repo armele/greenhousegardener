@@ -1,0 +1,41 @@
+{
+  "name": "Diverse Herds",
+  "subtitle": "...and on that farm...",
+  "branch": "minecolonies:technology",
+  "parentResearch": "minecolonies:technology/skilledbutcher",
+  "researchLevel": 3,
+  "sortOrder": 1,
+  "exclusiveChildResearch": false,
+  "no-reset": false,
+  "hidden": false,
+  "autostart": false,
+  "instant": false,
+  "requirements": [
+    {
+      "type": "minecolonies:building",
+      "building": "greenhousegardener:ranch",
+      "level": 2
+    }
+  ],
+  "costs": [
+    {
+      "count": 1,
+      "item": "minecraft:lead"
+    },
+    {
+      "count": 1,
+      "item": "minecraft:saddle"
+    },
+    {
+      "count": 1,
+      "item": "minecraft:golden_apple"
+    }
+  ],
+  "effects": [
+    {
+      "id": "greenhousegardener:effects/additional_ranch_herd",
+      "level": 1
+    }
+  ],
+  "icon": "minecraft:lead"
+}

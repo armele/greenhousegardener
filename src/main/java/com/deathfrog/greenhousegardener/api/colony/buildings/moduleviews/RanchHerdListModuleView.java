@@ -23,6 +23,7 @@ import static com.deathfrog.greenhousegardener.core.colony.buildings.modules.Ran
 public class RanchHerdListModuleView extends AbstractBuildingModuleView
 {
     private int herdCapacity;
+    private int supportedTypeCapacity;
     private final List<HerdView> herds = new ArrayList<>();
 
     /**
@@ -34,6 +35,7 @@ public class RanchHerdListModuleView extends AbstractBuildingModuleView
     public void deserialize(@NotNull final RegistryFriendlyByteBuf buf)
     {
         herdCapacity = buf.readInt();
+        supportedTypeCapacity = buf.readInt();
         herds.clear();
         final int size = buf.readInt();
         for (int i = 0; i < size; i++)
@@ -42,6 +44,7 @@ public class RanchHerdListModuleView extends AbstractBuildingModuleView
                 buf.readResourceLocation(),
                 buf.readInt(),
                 buf.readInt(),
+                buf.readBoolean(),
                 ItemStack.OPTIONAL_STREAM_CODEC.decode(buf)));
         }
     }
@@ -89,6 +92,11 @@ public class RanchHerdListModuleView extends AbstractBuildingModuleView
         return herdCapacity;
     }
 
+    public int getSupportedTypeCapacity()
+    {
+        return supportedTypeCapacity;
+    }
+
     /**
      * Returns the latest synchronized herd rows.
      *
@@ -105,9 +113,10 @@ public class RanchHerdListModuleView extends AbstractBuildingModuleView
      * @param entityType registered entity-type identifier
      * @param count number of managed animals currently present
      * @param capabilities synchronized product-capability bitmask
+     * @param supported whether this type occupies a supported first-seen slot
      * @param breedingFood preferred breeding food, or an empty stack
      */
-    public record HerdView(ResourceLocation entityType, int count, int capabilities, ItemStack breedingFood)
+    public record HerdView(ResourceLocation entityType, int count, int capabilities, boolean supported, ItemStack breedingFood)
     {
         /**
          * Tests whether the herd supports bowl-based milking.

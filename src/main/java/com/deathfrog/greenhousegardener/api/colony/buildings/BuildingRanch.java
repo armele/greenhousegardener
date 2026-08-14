@@ -1,6 +1,8 @@
 package com.deathfrog.greenhousegardener.api.colony.buildings;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
+import com.deathfrog.greenhousegardener.Config;
+import com.deathfrog.greenhousegardener.ModResearch;
 import com.deathfrog.greenhousegardener.core.colony.buildings.ModBuildings;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.modules.settings.ISettingKey;
@@ -52,6 +54,18 @@ public class BuildingRanch extends AbstractBuilding
     public int getHerdCapacity()
     {
         return getBuildingLevel() * HERD_CAPACITY_PER_LEVEL;
+    }
+
+    /**
+     * Maximum number of exact managed entity types supported by this Ranch.
+     *
+     * @return configured base type count plus the optional research bonus
+     */
+    public int getSupportedHerdTypeCapacity()
+    {
+        final int researchBonus = (int) Math.floor(getColony().getResearchManager()
+            .getResearchEffects().getEffectStrength(ModResearch.RESEARCH_ADDITIONAL_RANCH_HERD));
+        return Config.supportedRanchAnimalTypes.get() + Math.max(0, researchBonus);
     }
 
     /**

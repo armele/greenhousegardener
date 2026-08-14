@@ -64,7 +64,9 @@ Dozens of new foods, ingredients, crafting recipes, and MineColonies Chef/Baker 
 
 The Ranch is a MineColonies worker building for land animals that are not assigned to one of the core animal-herding buildings. Its Rancher can feed, breed, butcher, shear, milk, and collect dropped products from datapack-designated species.
 
-Herd capacity is calculated separately for every exact entity type at two animals per building level. A level 3 Ranch can therefore maintain six deer and six boars independently rather than treating them as one combined herd.
+Herd capacity is calculated separately for every supported exact entity type at two animals per building level. The number of supported types is server-configurable from one through five (two by default), and Diverse Herds research adds one. Types claim support in first-seen order and relinquish it when every animal of that type leaves the Ranch. A fully upgraded Ranch using the defaults can therefore maintain ten animals of each of two types, or three types after research.
+
+When more managed animal types are present than the Ranch supports, the Rancher reports the overcrowding, suspends breeding, and continues non-breeding care and population control for supported herds. The Herds tab shows the animal and type limits and marks unsupported types in red. Breeding may temporarily take a supported herd one animal over capacity when butchering is enabled; the Rancher then prioritizes reducing it to capacity.
 
 The Rancher discovers breeding foods from each live animal's own `Animal.isFood` behavior. This allows compatible modded animals to work without a Java integration or a hard dependency. Species that do not expose any breeding food can still be butchered or provide renewable products when their capability tags permit it.
 

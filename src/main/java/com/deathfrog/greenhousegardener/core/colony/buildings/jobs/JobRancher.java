@@ -13,6 +13,7 @@ import static com.minecolonies.api.util.constant.StatisticsConstants.ITEM_OBTAIN
 
 public class JobRancher extends AbstractJob<EntityAIWorkRancher, JobRancher>
 {
+    private boolean herdTypeOverload;
     public JobRancher(final ICitizenData entity)
     {
         super(entity);
@@ -22,6 +23,16 @@ public class JobRancher extends AbstractJob<EntityAIWorkRancher, JobRancher>
     public EntityAIWorkRancher generateAI()
     {
         return new EntityAIWorkRancher(this);
+    }
+
+    public boolean hasHerdTypeOverload()
+    {
+        return herdTypeOverload;
+    }
+
+    public void setHerdTypeOverload(final boolean herdTypeOverload)
+    {
+        this.herdTypeOverload = herdTypeOverload;
     }
 
     /**

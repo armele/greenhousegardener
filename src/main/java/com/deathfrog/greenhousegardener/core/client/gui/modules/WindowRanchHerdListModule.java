@@ -11,6 +11,7 @@ import com.ldtteam.blockui.views.ScrollingList;
 import com.minecolonies.core.client.gui.AbstractModuleWindow;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
@@ -77,6 +78,8 @@ public class WindowRanchHerdListModule extends AbstractModuleWindow<RanchHerdLis
     {
         findPaneOfTypeByID("capacity", Text.class).setText(Component.translatable(
             "com.greenhousegardener.core.gui.ranch_herds.capacity", moduleView.getHerdCapacity()));
+        findPaneOfTypeByID("typeCapacity", Text.class).setText(Component.translatable(
+            "com.greenhousegardener.core.gui.ranch_herds.type_capacity", moduleView.getSupportedTypeCapacity()));
         sortedHerds = moduleView.getHerds().stream()
             .sorted(Comparator.comparing(this::displayName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(herd -> herd.entityType().toString()))
@@ -95,11 +98,17 @@ public class WindowRanchHerdListModule extends AbstractModuleWindow<RanchHerdLis
             {
                 final HerdView herd = sortedHerds.get(index);
                 final Text animal = rowPane.findPaneOfTypeByID("animal", Text.class);
-                animal.setText(animalName(herd));
+                animal.setText(herd.supported()
+                    ? animalName(herd)
+                    : animalName(herd).copy().withStyle(ChatFormatting.RED));
                 animal.setHoverPane(null);
                 PaneBuilders.tooltipBuilder()
                     .hoverPane(animal)
                     .append(modTooltip(herd))
+                    .append(herd.supported()
+                        ? Component.empty()
+                        : Component.literal("\n").append(Component.translatable(
+                            "com.greenhousegardener.core.gui.ranch_herds.unsupported").withStyle(ChatFormatting.RED)))
                     .build();
                 rowPane.findPaneOfTypeByID("count", Text.class)
                     .setText(Component.literal(Integer.toString(herd.count())));

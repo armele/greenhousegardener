@@ -2,6 +2,8 @@ package com.deathfrog.greenhousegardener.apiimp.initializer;
 
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
+import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
+import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.minecolonies.api.colony.interactionhandling.InteractionValidatorRegistry;
 
 import net.minecraft.network.chat.Component;
@@ -16,6 +18,8 @@ public class InteractionInitializer
     public static final String GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE = "entity.horticulturist.biome_maintenance.shortage";
     public static final String GREENHOUSE_BIOME_LEDGER_UNCONFIGURED  = "entity.horticulturist.biome_ledger.unconfigured";
     public static final String GREENHOUSE_BIOME_CONTENTION           = "entity.horticulturist.biome_contention";
+    public static final String RANCH_TOO_MANY_ANIMAL_TYPES           = "entity.rancher.too_many_animal_types";
+    public static final String RANCH_TOO_MANY_ANIMAL_TYPES_TITLE     = "entity.rancher.too_many_animal_types.title";
 
     public static void injectInteractionHandlers() 
     {
@@ -35,5 +39,7 @@ public class InteractionInitializer
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_CONTENTION),
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeContentionWarning());
+        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(RANCH_TOO_MANY_ANIMAL_TYPES_TITLE),
+          citizen -> citizen.getWorkBuilding() instanceof BuildingRanch && citizen.getJob(JobRancher.class).hasHerdTypeOverload());
     }
 }

@@ -22,6 +22,7 @@ public class Config
     public static final ConfigValue<Integer>  roofPercentage;
     public static final ConfigValue<Boolean>  ambientPoofsEnabled;
     public static final ConfigValue<Integer>  ambientPoofIntervalTicks;
+    public static final ConfigValue<Integer>  supportedRanchAnimalTypes;
 
     public static final ConfigValue<Boolean>  fieldReversionWarning;
 
@@ -39,6 +40,11 @@ public class Config
         BUILDER.push("maintenance");
         maintenanceRevertDays = BUILDER.comment("Colony days a field can miss maintenance before reverting to its natural biome").defineInRange("maintenanceRevertDays", 5, 1, 30);
         maintenanceOverlayRepairPercent = BUILDER.comment("Maximum percent of loaded greenhouse biome cells that daily maintenance may repair before the field requires full conversion again").defineInRange("maintenanceOverlayRepairPercent", 15, 0, 100);
+        BUILDER.pop();
+
+        BUILDER.push("ranch");
+        supportedRanchAnimalTypes = BUILDER.comment("Number of different animal entity types a Ranch supports before research")
+            .defineInRange("supportedAnimalTypes", 2, 1, 5);
         BUILDER.pop();
 
         BUILDER.push("other");
