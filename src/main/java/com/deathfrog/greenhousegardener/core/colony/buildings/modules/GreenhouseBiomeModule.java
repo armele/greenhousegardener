@@ -1434,7 +1434,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param fieldPosition position of the farm field anchor
      * @return true when a different greenhouse module owns the field
      */
-    private boolean isOwnedByAnotherGreenhouse(final BlockPos fieldPosition)
+    public boolean isOwnedByAnotherGreenhouse(final BlockPos fieldPosition)
     {
         if (building == null || fieldPosition == null)
         {
@@ -1689,7 +1689,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param fieldPosition position of the farm field anchor
      * @return true when the block below is the climate control hub
      */
-    private boolean hasClimateControlHub(final BlockPos fieldPosition)
+    public boolean hasClimateControlHub(final BlockPos fieldPosition)
     {
         return validateClimateControlHub(fieldPosition) == HubValidation.Result.VALID;
     }
@@ -2118,6 +2118,39 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         return climate(FieldBiomeAssignment.DEFAULT);
+    }
+
+    /**
+     * Resolve the persisted natural biome for a field, falling back to the biome currently at its anchor.
+     */
+    @SuppressWarnings("null")
+    public ResourceLocation getNaturalBiomeId(final Level level, final @Nonnull BlockPos pos)
+    {
+        final BlockPos biomeCell = quantizedBlockPos(pos);
+        final ResourceLocation localCapture = naturalBiomes.get(biomeCell);
+        if (localCapture != null)
+        {
+            return localCapture;
+        }
+        if (building != null)
+        {
+            for (final IBuilding candidate : building.getColony().getServerBuildingManager().getBuildings().values())
+            {
+                final GreenhouseBiomeModule candidateModule = candidate == null
+                    ? null
+                    : candidate.getModule(GreenhouseBiomeModule.class, ignored -> true);
+                if (candidateModule != null)
+                {
+                    final ResourceLocation colonyCapture = candidateModule.naturalBiomes.get(biomeCell);
+                    if (colonyCapture != null)
+                    {
+                        return colonyCapture;
+                    }
+                }
+            }
+        }
+        return level.getBiome(pos).unwrapKey().map(ResourceKey::location)
+            .orElse(ResourceLocation.fromNamespaceAndPath("minecraft", "unknown"));
     }
 
     /**

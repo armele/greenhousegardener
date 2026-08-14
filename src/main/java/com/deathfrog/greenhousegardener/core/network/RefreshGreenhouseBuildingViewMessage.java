@@ -16,23 +16,21 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-/**
- * Requests an immediate greenhouse biome module refresh for the player viewing it.
- */
-public record RefreshGreenhouseBiomeModuleMessage(BlockPos buildingPos) implements IServerboundPayload
+/** Requests an immediate Greenhouse building-view refresh for the player viewing it. */
+public record RefreshGreenhouseBuildingViewMessage(BlockPos buildingPos) implements IServerboundPayload
 {
     @SuppressWarnings("null")
-    public static final Type<RefreshGreenhouseBiomeModuleMessage> ID =
-        new Type<>(ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "refresh_greenhouse_biome_module"));
+    public static final Type<RefreshGreenhouseBuildingViewMessage> ID =
+        new Type<>(ResourceLocation.fromNamespaceAndPath(GreenhouseGardenerMod.MODID, "refresh_greenhouse_building_view"));
 
     @SuppressWarnings("null")
-    public static final StreamCodec<RegistryFriendlyByteBuf, RefreshGreenhouseBiomeModuleMessage> STREAM_CODEC = StreamCodec.composite(
+    public static final StreamCodec<RegistryFriendlyByteBuf, RefreshGreenhouseBuildingViewMessage> STREAM_CODEC = StreamCodec.composite(
         BlockPos.STREAM_CODEC,
-        RefreshGreenhouseBiomeModuleMessage::buildingPos,
-        RefreshGreenhouseBiomeModuleMessage::new);
+        RefreshGreenhouseBuildingViewMessage::buildingPos,
+        RefreshGreenhouseBuildingViewMessage::new);
 
     @Override
-    public Type<RefreshGreenhouseBiomeModuleMessage> type()
+    public Type<RefreshGreenhouseBuildingViewMessage> type()
     {
         return ID;
     }
@@ -44,7 +42,7 @@ public record RefreshGreenhouseBiomeModuleMessage(BlockPos buildingPos) implemen
     }
 
     /**
-     * Sends the latest server-side building view to the requesting player only.
+     * Validate the requested Greenhouse and send its latest complete building view to one player.
      *
      * @param player player who requested the refresh
      */

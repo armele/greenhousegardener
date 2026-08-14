@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * Tells the client to highlight a greenhouse field block.
+ * Tells the client to highlight a colony field block.
  */
 public record HighlightFieldBlockMessage(BlockPos fieldPos) implements IClientboundPayload
 {

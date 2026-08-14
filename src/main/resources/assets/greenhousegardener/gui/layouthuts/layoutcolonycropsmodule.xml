@@ -1,0 +1,13 @@
+<window xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/1.20.1/src/main/resources/assets/blockui/gui/block_ui.xsd" size="190 244">
+    <image source="minecolonies:textures/gui/builderhut/builder_paper.png" size="190 244"/>
+    <text id="desc" size="150 11" pos="20 14" color="black" textalign="MIDDLE"/>
+    <text id="summary" size="174 11" pos="8 31" color="black" textalign="MIDDLE"/>
+    <list id="fields" size="174 184" pos="8 47" emptytext="$(com.greenhousegardener.core.gui.colony_crops.empty)" emptycolor="black">
+        <box size="168 26" linewidth="1">
+            <itemicon id="seed" size="16 16" pos="4 5"/>
+            <itemicon id="potential" size="16 16" pos="25 5"/>
+            <text id="worker" size="78 18" pos="45 4" color="black" textalign="MIDDLE_LEFT"/>
+            <text id="storedCount" size="38 18" pos="126 4" color="black" textalign="MIDDLE_RIGHT"/>
+        </box>
+    </list>
+</window>

@@ -11,6 +11,7 @@ import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateItemValueListener;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
+import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseCropProductListener;
 import com.deathfrog.greenhousegardener.core.items.ModCreativeTabs;
 import com.deathfrog.greenhousegardener.core.items.ModItems;
 import com.deathfrog.greenhousegardener.core.entity.EntityAIWorkRancher;
@@ -93,6 +94,7 @@ public class GreenhouseGardenerMod
     {
         event.addListener(GreenhouseClimateItemValueListener.INSTANCE);
         event.addListener(GreenhouseClimateRemainderListener.INSTANCE);
+        event.addListener(GreenhouseCropProductListener.INSTANCE);
     }
 
     @SubscribeEvent

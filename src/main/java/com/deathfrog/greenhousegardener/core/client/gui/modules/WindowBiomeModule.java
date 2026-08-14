@@ -13,7 +13,7 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.Greenho
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseBiomeModuleView.FieldBiomeView;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.HumiditySetting;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.TemperatureSetting;
-import com.deathfrog.greenhousegardener.core.network.RefreshGreenhouseBiomeModuleMessage;
+import com.deathfrog.greenhousegardener.core.network.RefreshGreenhouseBuildingViewMessage;
 import com.deathfrog.greenhousegardener.core.network.SaveGreenhouseBiomeFieldsMessage;
 import com.deathfrog.greenhousegardener.core.network.SaveGreenhouseBiomeFieldsMessage.FieldChange;
 import com.ldtteam.blockui.BOGuiGraphics;
@@ -87,7 +87,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
     public void onOpened()
     {
         super.onOpened();
-        new RefreshGreenhouseBiomeModuleMessage(buildingView.getPosition()).sendToServer();
+        new RefreshGreenhouseBuildingViewMessage(buildingView.getPosition()).sendToServer();
 
         final Image help = findPaneOfTypeByID(IMAGE_HELP, Image.class);
         final AbstractTextBuilder.TooltipBuilder helpTipBuilder = PaneBuilders.tooltipBuilder().hoverPane(help);
@@ -338,7 +338,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      * @param fieldPosition field anchor position
      */
     @SuppressWarnings("null")
-    private static void highlightField(final BlockPos fieldPosition)
+    static void highlightField(final BlockPos fieldPosition)
     {
         final Minecraft minecraft = Minecraft.getInstance();
         ClientPacketListener listener = minecraft.getConnection();

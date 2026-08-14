@@ -280,6 +280,25 @@ These define the item returned after a climate material is consumed, for items w
 
 Built-in item crafting remainders are used automatically before this datapack mapping is checked. For example, bucket-like items that already expose a crafting remainder do not need a custom remainder file.
 
+### Crop Product Mappings
+
+The Greenhouse Colony Crops tab reports how much of each field's normal product is stored across all colony warehouses. Planting items that differ from their harvested product can be mapped with datapack files under:
+
+```text
+data/<namespace>/greenhouse_crop_products/*.json
+```
+
+Each file maps one planting item to the product counted in warehouse storage:
+
+```json
+{
+  "seed": "examplemod:tomato_seeds",
+  "product": "examplemod:tomato"
+}
+```
+
+When no mapping exists, the selected planting item itself is counted. Greenhouse Gardener includes mappings for vanilla wheat, beetroot, pumpkin, melon, torchflower, and pitcher crops. A higher-priority datapack can replace a built-in mapping by overriding its resource path.
+
 ## Dependencies
 Minecraft version 1.21.1
 MineColonies (and its dependencies) version 1.1.1305+

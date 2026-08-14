@@ -2,14 +2,13 @@ package com.deathfrog.greenhousegardener;
 
 import java.util.List;
 
-import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule;
 import com.deathfrog.greenhousegardener.core.network.HighlightFieldBlockMessage;
 import com.deathfrog.greenhousegardener.core.util.TraceUtils;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
-import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.permissions.Action;
 import com.minecolonies.core.commands.commandTypes.IMCCommand;
+import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.BoolArgumentType;
@@ -159,13 +158,13 @@ public final class ModCommands
         if (access == FieldHighlightAccess.NOT_FOUND)
         {
             context.getSource().sendFailure(Component.literal(
-                "No greenhouse field available for highlighting was found at " + formatPosition(fieldPosition) + "."));
+                "No colony field available for highlighting was found at " + formatPosition(fieldPosition) + "."));
             return 0;
         }
         if (access == FieldHighlightAccess.DENIED)
         {
             context.getSource().sendFailure(Component.literal(
-                "You do not have permission to highlight the greenhouse field at " + formatPosition(fieldPosition) + "."));
+                "You do not have permission to highlight the colony field at " + formatPosition(fieldPosition) + "."));
             return 0;
         }
 
@@ -181,16 +180,18 @@ public final class ModCommands
 
         for (final IColony colony : IColonyManager.getInstance().getColonies(player.level()))
         {
-            for (final IBuilding building : colony.getServerBuildingManager().getBuildings().values())
+            final boolean isFarmField = colony.getServerBuildingManager()
+                .getBuildingExtensions(extension -> extension instanceof FarmField
+                    && fieldPosition.equals(extension.getPosition()))
+                .stream()
+                .findAny()
+                .isPresent();
+            if (isFarmField)
             {
-                final GreenhouseBiomeModule module = building.getModule(GreenhouseBiomeModule.class, candidate -> true);
-                if (module != null && module.isVisibleField(fieldPosition))
+                found = true;
+                if (bypassColonyPermissions || colony.getPermissions().hasPermission(player, Action.RECEIVE_MESSAGES))
                 {
-                    found = true;
-                    if (bypassColonyPermissions || colony.getPermissions().hasPermission(player, Action.RECEIVE_MESSAGES))
-                    {
-                        return FieldHighlightAccess.ALLOWED;
-                    }
+                    return FieldHighlightAccess.ALLOWED;
                 }
             }
         }
@@ -221,10 +222,10 @@ public final class ModCommands
 
         if (horizontalDistance <= 1 && vertical.isBlank())
         {
-            return Component.literal("Highlighted greenhouse field at your position.");
+            return Component.literal("Highlighted colony field at your position.");
         }
 
-        return Component.literal("Highlighted greenhouse field " + direction + ", "
+        return Component.literal("Highlighted colony field " + direction + ", "
             + horizontalDistance + " blocks away" + vertical + ".");
     }
 

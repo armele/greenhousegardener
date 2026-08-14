@@ -20,7 +20,7 @@ public final class FieldLocationComponents
     }
 
     /**
-     * Build a clickable chat component that highlights a greenhouse field block.
+     * Build a clickable chat component that highlights a colony field block.
      *
      * @param fieldPosition field anchor position
      * @return clickable location text, or a plain unknown label

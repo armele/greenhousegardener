@@ -15,7 +15,6 @@ import com.minecolonies.api.items.ItemBlockHut;
 import com.minecolonies.core.items.ItemCrop;
 import com.minecolonies.core.items.ItemFood;
 
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -59,6 +58,10 @@ public final class ModItems
       () -> new ItemCrop(ModBlocks.broccoli.get(), new Item.Properties(), ModTags.coldBiomes));
 
     public static final @Nonnull DeferredItem<Item> breadcrumbs = registerIngredient("breadcrumbs");
+
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<ItemCropJournal> cropJournal = ITEMS.register(
+      "crop_journal", () -> new ItemCropJournal(new Item.Properties()));
 
     @SuppressWarnings("null")
     public static final @Nonnull DeferredItem<Item> appleCiderVinegar = ITEMS.register(
@@ -128,12 +131,10 @@ public final class ModItems
         modEventBus.addListener(ModItems::modifyComponents);
     }
 
-    @SuppressWarnings("null")
+
     private static void modifyComponents(final ModifyDefaultComponentsEvent event)
     {
-        event.modify(cucumber.get(), builder -> builder.remove(DataComponents.FOOD));
-        event.modify(spinach.get(), builder -> builder.remove(DataComponents.FOOD));
-        event.modify(broccoli.get(), builder -> builder.remove(DataComponents.FOOD));
+
     }
 
     @SuppressWarnings("null")

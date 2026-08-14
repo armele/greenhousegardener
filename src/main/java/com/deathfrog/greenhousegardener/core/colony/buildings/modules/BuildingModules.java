@@ -1,6 +1,7 @@
 package com.deathfrog.greenhousegardener.core.colony.buildings.modules;
 
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseBiomeModuleView;
+import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseHumidityModuleView;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.GreenhouseTemperatureModuleView;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.RanchHerdListModuleView;
@@ -17,6 +18,9 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
 
 public class BuildingModules
 {
+    public static final BuildingEntry.ModuleProducer<ColonyCropsModule, ColonyCropsModuleView> COLONY_CROPS_MODULE =
+      new BuildingEntry.ModuleProducer<>("gg:colony_crops", ColonyCropsModule::new, () -> ColonyCropsModuleView::new);
+
     public static final BuildingEntry.ModuleProducer<GreenhouseBiomeModule, GreenhouseBiomeModuleView> BIOME_MODULE =
       new BuildingEntry.ModuleProducer<GreenhouseBiomeModule, GreenhouseBiomeModuleView>("gg:biome_settings", GreenhouseBiomeModule::new, () -> GreenhouseBiomeModuleView::new);
 

@@ -24,7 +24,7 @@ public final class GreenhouseFieldHighlighter
     }
 
     /**
-     * Highlight one greenhouse field block in the world.
+     * Highlight one colony field block in the world.
      *
      * @param fieldPos field anchor position
      */
@@ -42,6 +42,6 @@ public final class GreenhouseFieldHighlighter
             new TimedBoxRenderData(fieldPos)
                 .setDuration(HIGHLIGHT_DURATION)
                 .setColor(FIELD_HIGHLIGHT_COLOR)
-                .addText("Greenhouse field"));
+                .addText("Colony field"));
     }
 }
