@@ -28,6 +28,7 @@ import com.deathfrog.greenhousegardener.core.advancements.AdvancementTriggers;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.FieldBiomeAssignment;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.RoofProblemKind;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule;
 import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseClimateItemModule.ClimateItemList;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseClimateRemainderListener;
@@ -317,8 +318,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 building.getColony().getID(), conversionState, formatCurrentField()));
             return conversionState;
         }
-
-        job.resetNoGlassCounter();
 
         final IAIState maintenanceState = nextMaintenanceFieldState(level, module, fields);
         if (maintenanceState != null)
@@ -1002,7 +1001,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return DECIDE;
         }
 
-        job.resetNoGlassCounter();
+        safeBiomeModule().clearRoofProblem(currentField.getPosition());
         final IAIState nextState = roofValidationSuccessState;
         roofValidationSuccessState = DECIDE;
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist roof validation passed for field {}; next state {}.",
@@ -1017,50 +1016,52 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     private void handleRoofValidationFailure(final RoofValidationResult roofValidation)
     {
-        if (roofValidationSuccessState == HorticulturistState.MAINTAIN_FIELD && currentField != null)
+        final FarmField field = currentField;
+        if (field == null)
+        {
+            return;
+        }
+
+        final BlockPos fieldPosition = field.getPosition();
+        if (fieldPosition == null)
+        {
+            return;
+        }
+
+        if (roofValidationSuccessState == HorticulturistState.MAINTAIN_FIELD)
         {
             final GreenhouseBiomeModule module = safeBiomeModule();
-            final BlockPos fieldPosition = currentField.getPosition();
-
-            if (fieldPosition == null) 
-            {
-                return;
-            }
 
             final long colonyDay = building.getColony().getDay();
             module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
+            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, true));
             job.setBiomeLedgerShortage(false);
             triggerRoofInteraction(maintenanceRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, true));
             return;
         }
 
-        if (roofValidationSuccessState == HorticulturistState.TRANSFORM_FIELD && currentField != null)
+        if (roofValidationSuccessState == HorticulturistState.TRANSFORM_FIELD)
         {
             final GreenhouseBiomeModule module = safeBiomeModule();
-            final BlockPos fieldPosition = currentField.getPosition();
             final long colonyDay = building.getColony().getDay();
             module.recordFieldConversionBlocked(fieldPosition, colonyDay);
+            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, false));
+
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist blocked conversion field {} for colony day {} after roof validation failure.",
                 building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay));
         }
 
-        triggerRoofInteraction(conversionRoofFailureMessage(roofValidation), roofFailureInteractionKey(roofValidation, false));
+        triggerRoofInteraction(conversionRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, false));
     }
 
     /**
-     * Show the roof repair interaction after enough repeated roof validation failures.
+     * Show the roof repair interaction after roof validation failures.
      *
      * @param message player-facing interaction message
      * @param translationKey interaction translation key
      */
     private void triggerRoofInteraction(final Component message, final @Nonnull String translationKey)
     {
-        job.tickNoGlass();
-        if (!job.checkNoGlass())
-        {
-            return;
-        }
-
         worker.getCitizenData().triggerInteraction(new StandardInteraction(
             message,
             Component.translatable(translationKey),
@@ -2261,6 +2262,36 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             }
         }
 
+        // Exact GG reference biomes carry the MineColonies crop tags.  Even when a custom biome's
+        // numeric climate already matches the request, an explicit overlay must have a minimum
+        // directional cost so transformField() does not discard the request.
+        if (hotStepCells == 0 && coldStepCells == 0 && humidStepCells == 0 && dryStepCells == 0)
+        {
+            if (assignment.temperature() == GreenhouseBiomeModule.TemperatureSetting.HOT)
+            {
+                hotStepCells = 1;
+            }
+            else if (assignment.temperature() == GreenhouseBiomeModule.TemperatureSetting.COLD)
+            {
+                coldStepCells = 1;
+            }
+            if (assignment.humidity() == GreenhouseBiomeModule.HumiditySetting.HUMID)
+            {
+                humidStepCells = 1;
+            }
+            else if (assignment.humidity() == GreenhouseBiomeModule.HumiditySetting.DRY)
+            {
+                dryStepCells = 1;
+            }
+
+            // Temperate/normal has no directional ledger of its own.  Use one temperature-increase
+            // step as the deterministic minimum charge when both requested axes are neutral.
+            if (hotStepCells == 0 && coldStepCells == 0 && humidStepCells == 0 && dryStepCells == 0)
+            {
+                hotStepCells = 1;
+            }
+        }
+
         return new BiomeConversionCost(
             climateCost(hotStepCells, unitCost, skillMultiplier, discount),
             climateCost(coldStepCells, unitCost, skillMultiplier, discount),
@@ -2730,24 +2761,36 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             : InteractionInitializer.GREENHOUSE_NOGLASS_AT;
     }
 
+    private static RoofProblemKind roofProblemKind(final RoofValidationResult roofValidation, final boolean maintenance)
+    {
+        if (roofValidation.failure() == RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO)
+        {
+            return maintenance ? RoofProblemKind.MAINTENANCE_RATIO : RoofProblemKind.CONVERSION_RATIO;
+        }
+        return maintenance ? RoofProblemKind.MAINTENANCE_HOLE : RoofProblemKind.CONVERSION_HOLE;
+    }
+
     /**
      * Build the conversion-specific roof validation failure message.
      *
+     * @param fieldPosition field anchor position being converted
      * @param roofValidation failed roof validation result
      * @return translated interaction message for conversion roof failure
      */
-    private static Component conversionRoofFailureMessage(final RoofValidationResult roofValidation)
+    private static Component conversionRoofFailureMessage(final @Nonnull BlockPos fieldPosition, final RoofValidationResult roofValidation)
     {
         if (roofValidation.failure() == RoofValidationFailure.INSUFFICIENT_TAGGED_RATIO)
         {
             return Component.translatable(
                 InteractionInitializer.GREENHOUSE_ROOF_RATIO,
+                FieldLocationComponents.fieldLocation(fieldPosition),
                 formatRoofCoveragePercentage(roofValidation),
                 roofValidation.requiredPercentage());
         }
 
         return Component.translatable(
             InteractionInitializer.GREENHOUSE_NOGLASS_AT,
+            FieldLocationComponents.fieldLocation(fieldPosition),
             formatBlockPos(roofValidation.holePosition()));
     }
 

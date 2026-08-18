@@ -6,8 +6,6 @@ import com.minecolonies.core.colony.jobs.AbstractJob;
 
 public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, JobsHorticulturist>
 {
-    public static final int COUNTER_TRIGGER = 0;
-    protected int noGlassCounter = 0;
     protected boolean biomeLedgerShortage = false;
     protected boolean biomeContentionWarning = false;
 
@@ -22,37 +20,6 @@ public class JobsHorticulturist extends AbstractJob<EntityAIWorkHorticulturist, 
         return new EntityAIWorkHorticulturist(this);
     }
     
-    /**
-     * Check if the interaction is valid/should be triggered.
-     *
-     * @return true if the interaction is valid/should be triggered.
-     */
-    public boolean checkNoGlass()
-    {
-        return noGlassCounter > COUNTER_TRIGGER;
-    }
-
-    /**
-     * Tick the menu interaction counter to determine the time when the interaction gets triggered.
-     */
-    public int tickNoGlass()
-    {
-        if (noGlassCounter < 100) // to prevent unnecessary high counter when ignored by player
-        {
-            noGlassCounter++;
-        }
-
-        return noGlassCounter;
-    }
-
-    /**
-     * Reset the interaction counter.
-     */
-    public void resetNoGlassCounter()
-    {
-        noGlassCounter = 0;
-    }
-
     /**
      * Check if the biome ledger shortage interaction is still valid.
      *

@@ -2,6 +2,8 @@ package com.deathfrog.greenhousegardener.apiimp.initializer;
 
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingGreenhouse;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobsHorticulturist;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule;
+import com.deathfrog.greenhousegardener.core.colony.buildings.modules.GreenhouseBiomeModule.RoofProblemKind;
 import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.minecolonies.api.colony.interactionhandling.InteractionValidatorRegistry;
@@ -24,13 +26,13 @@ public class InteractionInitializer
     public static void injectInteractionHandlers() 
     {
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_NOGLASS_AT),
-          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkNoGlass());
+          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.CONVERSION_HOLE));
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_NOGLASS),
-          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkNoGlass());
+          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.MAINTENANCE_HOLE));
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_ROOF_RATIO),
-          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkNoGlass());
+          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.CONVERSION_RATIO));
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO),
-          citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkNoGlass());
+          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.MAINTENANCE_RATIO));
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_LEDGER_SHORTAGE),
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
@@ -41,5 +43,16 @@ public class InteractionInitializer
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeContentionWarning());
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(RANCH_TOO_MANY_ANIMAL_TYPES_TITLE),
           citizen -> citizen.getWorkBuilding() instanceof BuildingRanch && citizen.getJob(JobRancher.class).hasHerdTypeOverload());
+    }
+
+    private static boolean hasRoofProblem(final Object workBuilding, final RoofProblemKind kind)
+    {
+        if (!(workBuilding instanceof BuildingGreenhouse greenhouse))
+        {
+            return false;
+        }
+
+        final GreenhouseBiomeModule module = greenhouse.getModule(GreenhouseBiomeModule.class, ignored -> true);
+        return module != null && module.hasRoofProblem(kind);
     }
 }

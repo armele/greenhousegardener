@@ -54,7 +54,8 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
                 buf.readEnum(TemperatureSetting.class),
                 buf.readEnum(HumiditySetting.class),
                 buf.readBoolean(),
-                buf.readInt()));
+                buf.readInt(),
+                buf.readBoolean()));
         }
     }
 
@@ -149,7 +150,8 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
                     field.naturalTemperature(),
                     field.naturalHumidity(),
                     field.owned(),
-                    field.daysSinceLastMaintenance()));
+                    field.daysSinceLastMaintenance(),
+                    field.invalidRoof()));
                 return;
             }
         }
@@ -177,7 +179,8 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
                     field.naturalTemperature(),
                     field.naturalHumidity(),
                     owned,
-                    field.daysSinceLastMaintenance()));
+                    field.daysSinceLastMaintenance(),
+                    field.invalidRoof()));
                 ownedFieldCount += owned ? 1 : -1;
                 return;
             }
@@ -193,7 +196,8 @@ public class GreenhouseBiomeModuleView  extends AbstractBuildingModuleView
         TemperatureSetting naturalTemperature,
         HumiditySetting naturalHumidity,
         boolean owned,
-        int daysSinceLastMaintenance)
+        int daysSinceLastMaintenance,
+        boolean invalidRoof)
     {
     }
 

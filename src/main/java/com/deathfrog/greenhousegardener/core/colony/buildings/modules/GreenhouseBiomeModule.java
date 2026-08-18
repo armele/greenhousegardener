@@ -88,6 +88,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private static final String TAG_LAST_MAINTENANCE_WARNING_DAYS = "lastMaintenanceWarningDays";
     private static final String TAG_LAST_BIOME_CONTENTION_WARNING_DAYS = "lastBiomeContentionWarningDays";
     private static final String TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY = "lastMaintenanceDecayScanDay";
+    private static final String TAG_ROOF_PROBLEMS = "roofProblems";
+    private static final String TAG_ROOF_PROBLEM_KIND = "kind";
     private static final String TAG_DAY = "day";
     private static final String TAG_FIRST_FIELD_POS = "firstFieldPos";
     private static final String TAG_SECOND_FIELD_POS = "secondFieldPos";
@@ -110,6 +112,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private final Map<FieldPairKey, Long> lastBiomeContentionWarningDays = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
+    private final Map<BlockPos, RoofProblemKind> roofProblems = new HashMap<>();
     private long lastMaintenanceDecayScanDay = Long.MIN_VALUE;
     private long nextFieldValidationGameTime;
     private int fieldValidationCursor;
@@ -190,6 +193,25 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastBiomeContentionWarningDays.clear();
         readFieldPairDayMap(compound.getList(TAG_LAST_BIOME_CONTENTION_WARNING_DAYS, Tag.TAG_COMPOUND), lastBiomeContentionWarningDays);
 
+        roofProblems.clear();
+        for (final Tag tag : compound.getList(TAG_ROOF_PROBLEMS, Tag.TAG_COMPOUND))
+        {
+            final CompoundTag problemTag = (CompoundTag) tag;
+            if (problemTag != null)
+            {
+                NbtUtils.readBlockPos(problemTag, TAG_FIELD_POS).ifPresent(pos -> {
+                    try
+                    {
+                        roofProblems.put(pos.immutable(), RoofProblemKind.valueOf(problemTag.getString(TAG_ROOF_PROBLEM_KIND)));
+                    }
+                    catch (final IllegalArgumentException ignored)
+                    {
+                        // Ignore roof-problem values written by an incompatible version.
+                    }
+                });
+            }
+        }
+
         lastMaintenanceDecayScanDay = compound.contains(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY)
             ? compound.getLong(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY)
             : Long.MIN_VALUE;
@@ -238,6 +260,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         compound.put(TAG_FIRST_MISSED_MAINTENANCE_DAYS, writeDayMap(firstMissedMaintenanceDays));
         compound.put(TAG_LAST_MAINTENANCE_WARNING_DAYS, writeDayMap(lastMaintenanceWarningDays));
         compound.put(TAG_LAST_BIOME_CONTENTION_WARNING_DAYS, writeFieldPairDayMap(lastBiomeContentionWarningDays));
+        final ListTag roofProblemTags = new ListTag();
+        roofProblems.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().asLong())).forEach(entry -> {
+            final CompoundTag problemTag = new CompoundTag();
+            problemTag.put(TAG_FIELD_POS, NbtUtils.writeBlockPos(entry.getKey()));
+            problemTag.putString(TAG_ROOF_PROBLEM_KIND, entry.getValue().name());
+            roofProblemTags.add(problemTag);
+        });
+        compound.put(TAG_ROOF_PROBLEMS, roofProblemTags);
         compound.putLong(TAG_LAST_MAINTENANCE_DECAY_SCAN_DAY, lastMaintenanceDecayScanDay);
     }
 
@@ -278,6 +308,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             buf.writeEnum(naturalClimate.humidity());
             buf.writeBoolean(isOwned(fieldPosition));
             buf.writeInt(daysSinceLastMaintenance);
+            buf.writeBoolean(hasRoofProblem(fieldPosition));
         }
     }
 
@@ -508,10 +539,14 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final FieldBiomeAssignment current = getAssignment(immutablePosition);
         if (current.temperature() == temperature && current.humidity() == humidity)
         {
+            // A matching numeric climate can still require our tagged reference biome for MineColonies crops.
+            // Preserve the player's explicit request instead of collapsing it into the natural fallback.
+            assignments.put(immutablePosition, current);
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule assignment for field {} already {}; refreshing seed and hub state.",
                 colonyId(), formatBlockPos(immutablePosition), formatAssignment(current)));
             clearInvalidSeedForAssignedClimate(immutablePosition);
             updateHubVisualClimate(immutablePosition, current);
+            markDirty();
             return;
         }
 
@@ -661,8 +696,8 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         final Set<FieldBiomeAssignment> modifiedAssignments = new HashSet<>();
         for (final BlockPos fieldPosition : proposedOwned)
         {
-            final FieldBiomeAssignment assignment = proposedAssignments.getOrDefault(fieldPosition, assignmentForNaturalClimate(level, fieldPosition));
-            if (isAssignmentModifiedFromNatural(level, fieldPosition, assignment))
+            final FieldBiomeAssignment assignment = proposedAssignments.get(fieldPosition);
+            if (assignment != null)
             {
                 modifiedAssignments.add(assignment);
             }
@@ -679,7 +714,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      */
     public boolean isFieldModifiedFromNatural(final ServerLevel level, final BlockPos fieldPosition)
     {
-        return isAssignmentModifiedFromNatural(level, fieldPosition, getAssignment(fieldPosition));
+        return fieldPosition != null && isOwned(fieldPosition) && assignments.containsKey(fieldPosition);
     }
 
     /**
@@ -1031,6 +1066,36 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         return dayEquals(lastConversionBlockedDays.get(fieldPosition), colonyDay);
     }
 
+    /** Record an unresolved roof validation problem for a field. */
+    public void recordRoofProblem(final BlockPos fieldPosition, final RoofProblemKind kind)
+    {
+        if (fieldPosition != null && kind != null && roofProblems.put(fieldPosition.immutable(), kind) != kind)
+        {
+            markDirty();
+        }
+    }
+
+    /** Clear a field's roof problem after that same field passes validation. */
+    public void clearRoofProblem(final BlockPos fieldPosition)
+    {
+        if (fieldPosition != null && roofProblems.remove(fieldPosition) != null)
+        {
+            markDirty();
+        }
+    }
+
+    /** Check whether a field has a worker-confirmed unresolved roof problem. */
+    public boolean hasRoofProblem(final BlockPos fieldPosition)
+    {
+        return fieldPosition != null && roofProblems.containsKey(fieldPosition);
+    }
+
+    /** Check whether any unresolved problem matches an interaction category. */
+    public boolean hasRoofProblem(final RoofProblemKind kind)
+    {
+        return kind != null && roofProblems.containsValue(kind);
+    }
+
     /**
      * Clear conversion blocks recorded for a colony day.
      *
@@ -1176,6 +1241,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         firstMissedMaintenanceDays.remove(immutablePosition);
         lastMaintenanceWarningDays.remove(immutablePosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(immutablePosition));
+        roofProblems.remove(immutablePosition);
         markDirty();
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule reverted field {} to natural biome on day {}; cleared overlay tracking and seed assignment.",
             colonyId(), formatBlockPos(immutablePosition), colonyDay));
@@ -1595,6 +1661,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         firstMissedMaintenanceDays.remove(fieldPosition);
         lastMaintenanceWarningDays.remove(fieldPosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(fieldPosition));
+        roofProblems.remove(fieldPosition);
         markDirty();
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule released field {}; owned fields remaining {}.",
             colonyId(), formatBlockPos(fieldPosition), ownedFields.size()));
@@ -2084,8 +2151,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
-        final GreenhouseClimate naturalClimate = naturalClimate(level, fieldPosition);
-        return assignment.temperature() != naturalClimate.temperature() || assignment.humidity() != naturalClimate.humidity();
+        return assignments.containsKey(fieldPosition);
     }
 
     /**
@@ -2426,6 +2492,15 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         {
             return fieldPosition != null && (first.equals(fieldPosition) || second.equals(fieldPosition));
         }
+    }
+
+    /** Categories used to retain and validate player-facing roof interactions. */
+    public enum RoofProblemKind
+    {
+        CONVERSION_HOLE,
+        CONVERSION_RATIO,
+        MAINTENANCE_HOLE,
+        MAINTENANCE_RATIO
     }
 
     /**

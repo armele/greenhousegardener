@@ -31,6 +31,7 @@ import com.ldtteam.blockui.views.ScrollingList;
 import com.ldtteam.blockui.views.View;
 import com.minecolonies.core.client.gui.AbstractModuleWindow;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
@@ -603,7 +604,9 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      */
     private static boolean isModified(final FieldBiomeView field, final TemperatureSetting temperature, final HumiditySetting humidity)
     {
-        return temperature != field.naturalTemperature() || humidity != field.naturalHumidity();
+        // Every owned climate selection is an explicit request for the corresponding tagged GG overlay.
+        // Numeric equality with the natural biome does not guarantee MineColonies crop-tag compatibility.
+        return true;
     }
 
     /**
@@ -727,6 +730,12 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
         else if (field.owned() && field.daysSinceLastMaintenance() >= 0)
         {
             tooltip.append("\n").append(maintenanceTooltipLine(field.daysSinceLastMaintenance()));
+        }
+
+        if (field.invalidRoof())
+        {
+            tooltip.append("\n").append(Component.translatable(
+                "com.greenhousegardener.core.gui.biome.invalid_roof").withStyle(ChatFormatting.RED));
         }
 
         pane.setHoverPane(null);
