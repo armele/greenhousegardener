@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
 import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView.CropFieldView;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshot;
 import com.deathfrog.greenhousegardener.core.blocks.ModBlocks;
 import com.deathfrog.greenhousegardener.core.network.RefreshGreenhouseBuildingViewMessage;
 import com.ldtteam.blockui.BOGuiGraphics;
@@ -38,7 +38,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
     private static final ItemStack CLIMATE_HUB = new ItemStack(ModBlocks.climateControlHub.get());
     
     private final ScrollingList fieldList;
-    private List<CropFieldView> fields = List.of();
+    private List<CropFieldSnapshot> fields = List.of();
 
     public WindowColonyCropsModule(final ColonyCropsModuleView moduleView)
     {
@@ -78,7 +78,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param colony client colony used to resolve live farming phases
      */
     public static void refresh(final AbstractWindowSkeleton host, final ScrollingList fieldList,
-        final List<CropFieldView> fields, final IColonyView colony)
+        final List<CropFieldSnapshot> fields, final IColonyView colony)
     {
         final long unassigned = fields.stream().filter(field -> !field.assigned()).count();
         host.findPaneOfTypeByID("summary", Text.class).setText(unassigned == 0 && !fields.isEmpty()
@@ -107,7 +107,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param row row pane to populate
      */
     @SuppressWarnings("null")
-    private static void updateRow(final CropFieldView field, final Pane row, final IColonyView colony)
+    private static void updateRow(final CropFieldSnapshot field, final Pane row, final IColonyView colony)
     {
         final ItemIcon seed = row.findPaneOfTypeByID("seed", ItemIcon.class);
         seed.setItem(field.seed().isEmpty() ? UNSET_SEED : field.seed());
@@ -165,7 +165,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param pane control that should display the tooltip
      * @param field field described by the tooltip
      */
-    private static void tooltip(final Pane pane, final CropFieldView field, final IColonyView colony)
+    private static void tooltip(final Pane pane, final CropFieldSnapshot field, final IColonyView colony)
     {
         pane.setHoverPane(null);
         PaneBuilders.tooltipBuilder().hoverPane(pane).append(fieldTooltip(field, colony)).build();
@@ -178,7 +178,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @return composed tooltip component
      */
     @SuppressWarnings("null")
-    private static Component fieldTooltip(final CropFieldView field, final IColonyView colony)
+    private static Component fieldTooltip(final CropFieldSnapshot field, final IColonyView colony)
     {
         final BlockPos pos = field.position();
         Component result = Component.translatable("com.greenhousegardener.core.gui.colony_crops.position",
@@ -222,7 +222,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param field field whose live extension state should be inspected
      * @return translated farming phase, or {@code null} for unassigned or unavailable fields
      */
-    private static Component farmingPhaseTooltip(final CropFieldView field, final IColonyView colony)
+    private static Component farmingPhaseTooltip(final CropFieldSnapshot field, final IColonyView colony)
     {
         if (!field.assigned() || colony == null)
         {
@@ -247,7 +247,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param field field whose stored product should be described
      * @return translated warehouse count component
      */
-    private static Component storageTooltip(final CropFieldView field)
+    private static Component storageTooltip(final CropFieldSnapshot field)
     {
         if (field.product().isEmpty())
         {
@@ -265,7 +265,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param field field whose stored product quantity should be described
      * @return translated compact warehouse count component
      */
-    private static Component storageAmountTooltip(final CropFieldView field)
+    private static Component storageAmountTooltip(final CropFieldSnapshot field)
     {
         return Component.translatable(
             "com.greenhousegardener.core.gui.colony_crops.storage.amount",
@@ -278,7 +278,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param field field whose assignment should be described
      * @return translated assignment component
      */
-    private static Component assignmentTooltip(final CropFieldView field)
+    private static Component assignmentTooltip(final CropFieldSnapshot field)
     {
         if (!field.assigned())
         {
@@ -297,7 +297,7 @@ public class WindowColonyCropsModule extends AbstractModuleWindow<ColonyCropsMod
      * @param field field whose climate-control state should be described
      * @return translated climate-control component
      */
-    private static Component climateTooltip(final CropFieldView field)
+    private static Component climateTooltip(final CropFieldSnapshot field)
     {
         if (!field.hasClimateControlHub())
         {

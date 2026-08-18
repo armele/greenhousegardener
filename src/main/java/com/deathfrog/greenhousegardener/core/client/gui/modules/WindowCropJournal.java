@@ -3,7 +3,7 @@ package com.deathfrog.greenhousegardener.core.client.gui.modules;
 import java.util.List;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView.CropFieldView;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshot;
 import com.deathfrog.greenhousegardener.core.network.RequestCropJournalMessage;
 import com.ldtteam.blockui.controls.Text;
 import com.ldtteam.blockui.views.ScrollingList;
@@ -30,11 +30,11 @@ public class WindowCropJournal extends AbstractWindowSkeleton
     private final InteractionHand hand;
     private final IColonyView colony;
     private final ScrollingList fieldList;
-    private List<CropFieldView> fields;
+    private List<CropFieldSnapshot> fields;
     private int refreshTicks;
 
     private WindowCropJournal(final ColonyId colonyId, final BlockPos greenhousePosition,
-        final InteractionHand hand, final List<CropFieldView> fields)
+        final InteractionHand hand, final List<CropFieldSnapshot> fields)
     {
         super(ResourceLocation.fromNamespaceAndPath(
             GreenhouseGardenerMod.MODID, "gui/layouthuts/layoutcolonycropsmodule.xml"));
@@ -69,7 +69,7 @@ public class WindowCropJournal extends AbstractWindowSkeleton
      * @param fields synchronized crop fields
      */
     public static void acceptSnapshot(final ColonyId colonyId, final BlockPos greenhousePosition,
-        final List<CropFieldView> fields)
+        final List<CropFieldSnapshot> fields)
     {
         if (active != null && active.colonyId.equals(colonyId)
             && active.greenhousePosition.equals(greenhousePosition))

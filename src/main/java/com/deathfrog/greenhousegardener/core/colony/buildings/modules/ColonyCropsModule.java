@@ -18,8 +18,8 @@ import com.minecolonies.api.crafting.ItemStorage;
 import com.minecolonies.api.util.InventoryUtils;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.deathfrog.greenhousegardener.core.datalistener.GreenhouseCropProductListener;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView.CropFieldView;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshot;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshotCodec;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -36,7 +36,7 @@ public class ColonyCropsModule extends AbstractBuildingModule
     @Override
     public void serializeToView(@NotNull final RegistryFriendlyByteBuf buf)
     {
-        ColonyCropsModuleView.writeFields(buf, snapshot());
+        CropFieldSnapshotCodec.writeList(buf, snapshot());
     }
 
     /**
@@ -45,7 +45,7 @@ public class ColonyCropsModule extends AbstractBuildingModule
      * @return immutable, unassigned-first field snapshot
      */
     @SuppressWarnings("null")
-    public List<CropFieldView> snapshot()
+    public List<CropFieldSnapshot> snapshot()
     {
         final List<FarmField> fields = allFarmFields();
         final GreenhouseBiomeModule biomeModule = building.getModule(GreenhouseBiomeModule.class, ignored -> true);
@@ -55,7 +55,7 @@ public class ColonyCropsModule extends AbstractBuildingModule
             .comparing(FarmField::isTaken)
             .thenComparingInt(field -> field.getPosition().distManhattan(building.getID())));
 
-        final List<CropFieldView> snapshot = new ArrayList<>(fields.size());
+        final List<CropFieldSnapshot> snapshot = new ArrayList<>(fields.size());
         for (final FarmField field : fields)
         {
             final BlockPos position = field.getPosition().immutable();
@@ -74,7 +74,7 @@ public class ColonyCropsModule extends AbstractBuildingModule
                 ? 0
                 : productCounts.computeIfAbsent(product.getItem(), this::warehouseProductCount);
 
-            snapshot.add(new CropFieldView(position, field.getSeed().copy(), product, productCount, field.isTaken(),
+            snapshot.add(new CropFieldSnapshot(position, field.getSeed().copy(), product, productCount, field.isTaken(),
                 farm == null ? null : farm.getID(), workers,
                 biomeModule.hasClimateControlHub(position), biomeModule.isOwned(position),
                 biomeModule.isOwnedByAnotherGreenhouse(position), biomeModule.isOwned(position)

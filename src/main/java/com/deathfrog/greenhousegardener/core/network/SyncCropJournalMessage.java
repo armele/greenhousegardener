@@ -7,9 +7,9 @@ import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 import com.deathfrog.greenhousegardener.GreenhouseGardenerMod;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView;
-import com.deathfrog.greenhousegardener.api.colony.buildings.moduleviews.ColonyCropsModuleView.CropFieldView;
-import com.deathfrog.greenhousegardener.core.client.gui.modules.WindowCropJournal;
+import com.deathfrog.greenhousegardener.core.client.network.ClientCropJournalPayloadHandler;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshot;
+import com.deathfrog.greenhousegardener.core.colony.crops.CropFieldSnapshotCodec;
 import com.minecolonies.api.items.component.ColonyId;
 
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /** Delivers a server-authoritative crop-journal snapshot to the client. */
-public record SyncCropJournalMessage(ColonyId colonyId, BlockPos greenhousePosition, List<CropFieldView> fields)
+public record SyncCropJournalMessage(ColonyId colonyId, BlockPos greenhousePosition, List<CropFieldSnapshot> fields)
     implements IClientboundPayload
 {
     @SuppressWarnings("null")
@@ -32,7 +32,7 @@ public record SyncCropJournalMessage(ColonyId colonyId, BlockPos greenhousePosit
         public SyncCropJournalMessage decode(final @Nonnull RegistryFriendlyByteBuf buf)
         {
             return new SyncCropJournalMessage(ColonyId.STREAM_CODEC.decode(buf), buf.readBlockPos(),
-                ColonyCropsModuleView.readFields(buf));
+                CropFieldSnapshotCodec.readList(buf));
         }
 
         @SuppressWarnings("null")
@@ -41,7 +41,7 @@ public record SyncCropJournalMessage(ColonyId colonyId, BlockPos greenhousePosit
         {
             ColonyId.STREAM_CODEC.encode(buf, message.colonyId());
             buf.writeBlockPos(message.greenhousePosition());
-            ColonyCropsModuleView.writeFields(buf, message.fields());
+            CropFieldSnapshotCodec.writeList(buf, message.fields());
         }
     };
 
@@ -53,6 +53,6 @@ public record SyncCropJournalMessage(ColonyId colonyId, BlockPos greenhousePosit
 
     public void onExecute(@NotNull final IPayloadContext context)
     {
-        context.enqueueWork(() -> WindowCropJournal.acceptSnapshot(colonyId, greenhousePosition, fields));
+        ClientCropJournalPayloadHandler.handle(this, context);
     }
 }
