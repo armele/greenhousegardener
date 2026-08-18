@@ -1,6 +1,7 @@
 package com.deathfrog.greenhousegardener.core.world;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +29,24 @@ class GreenhouseBiomeOverlayServiceTest
         final FieldBiomeFootprint footprint =
             FieldBiomeFootprint.directional(new BlockPos(10, 64, 20), 1, 8, 2, 5);
 
-        assertEquals(new BoundingBox(9, 56, 18, 18, 72, 25), footprint.exactRegion());
-        assertEquals(new BoundingBox(4, 56, 12, 20, 72, 28), GreenhouseBiomeOverlayService.paddedBiomeRegion(footprint.exactRegion()));
+        assertEquals(new BoundingBox(9, 62, 18, 18, 72, 25), footprint.exactRegion());
+        assertEquals(new BoundingBox(4, 60, 12, 20, 72, 28), GreenhouseBiomeOverlayService.paddedBiomeRegion(footprint.exactRegion()));
+    }
+
+    @Test
+    void defaultLowerBoundCoversSmoothedLookupWithoutExtendingPastFourBlocksBelowHub()
+    {
+        for (int fieldY = 64; fieldY < 68; fieldY++)
+        {
+            final FieldBiomeFootprint footprint =
+                FieldBiomeFootprint.directional(new BlockPos(10, fieldY, 20), 1, 1, 1, 1);
+            final BoundingBox padded = footprint.paddedBiomeRegion();
+            final int hubY = fieldY - 1;
+
+            assertEquals(fieldY - GreenhouseBiomeOverlayService.DEFAULT_BELOW_FIELD, footprint.exactRegion().minY());
+            assertEquals(fieldY + GreenhouseBiomeOverlayService.DEFAULT_ABOVE_FIELD, footprint.exactRegion().maxY());
+            assertEquals(Math.floorDiv(fieldY - 2, 4) * 4, padded.minY());
+            assertTrue(padded.minY() >= hubY - 4);
+        }
     }
 }

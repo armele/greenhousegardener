@@ -102,6 +102,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     private static final int FIELD_TRANSFORMED_POOF_COUNT = 96;
     private static final int MAX_GREENHOUSE_ROOF_HEIGHT = 20;
     private static final int ROOF_INSPECTION_CORNERS = 4;
+    private static final int ROOF_RETRY_DELAY_TICKS = 1_200;
     private static final int NORMAL_PRIMARY_SKILL = 20;
     private static final int MAX_PRIMARY_SKILL = 99;
     private static final double MAX_PRIMARY_SKILL_COST_DISCOUNT = 0.5D;
@@ -482,16 +483,29 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             if (conversionBlockedToday)
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
-                final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
-                if (!canRestockShortageNow(conversionCost, safeTemperatureModule(), safeHumidityModule()))
+                if (module.hasRoofProblem(fieldPosition))
                 {
-                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because conversion was already blocked on colony day {}.",
-                        building.getColony().getID(), fieldDescription, colonyDay));
-                    continue;
-                }
+                    if (!module.isRoofRetryDue(fieldPosition, level.getGameTime()))
+                    {
+                        continue;
+                    }
 
-                trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist retrying blocked conversion field {} on colony day {} because matching climate material is now available.",
-                    building.getColony().getID(), fieldDescription, colonyDay));
+                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist retrying roof-blocked conversion field {} on colony day {} after its repair-check cooldown.",
+                        building.getColony().getID(), fieldDescription, colonyDay));
+                }
+                else
+                {
+                    final BiomeConversionCost conversionCost = biomeConversionCost(level, field, assignment, module);
+                    if (!canRestockShortageNow(conversionCost, safeTemperatureModule(), safeHumidityModule()))
+                    {
+                        trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion field {} because conversion was already blocked on colony day {}.",
+                            building.getColony().getID(), fieldDescription, colonyDay));
+                        continue;
+                    }
+
+                    trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist retrying blocked conversion field {} on colony day {} because matching climate material is now available.",
+                        building.getColony().getID(), fieldDescription, colonyDay));
+                }
             }
 
             if (module.wasFieldRevertedOnDay(fieldPosition, colonyDay))
@@ -595,6 +609,11 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         {
             final FarmField field = fields.get(fieldIndex);
             if (field == null || !needsMaintenanceRetry(level, module, field, colonyDay))
+            {
+                continue;
+            }
+
+            if (module.hasRoofProblem(field.getPosition()) && !module.isRoofRetryDue(field.getPosition(), level.getGameTime()))
             {
                 continue;
             }
@@ -1034,7 +1053,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
             final long colonyDay = building.getColony().getDay();
             module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
-            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, true));
+            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, true), worker.level().getGameTime() + ROOF_RETRY_DELAY_TICKS);
             job.setBiomeLedgerShortage(false);
             triggerRoofInteraction(maintenanceRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, true));
             return;
@@ -1045,7 +1064,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             final GreenhouseBiomeModule module = safeBiomeModule();
             final long colonyDay = building.getColony().getDay();
             module.recordFieldConversionBlocked(fieldPosition, colonyDay);
-            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, false));
+            module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, false), worker.level().getGameTime() + ROOF_RETRY_DELAY_TICKS);
 
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist blocked conversion field {} for colony day {} after roof validation failure.",
                 building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay));

@@ -34,7 +34,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  */
 public final class GreenhouseBiomeOverlayService
 {
-    public static final int DEFAULT_VERTICAL_RANGE = 8;
+    public static final int DEFAULT_BELOW_FIELD = 2;
+    public static final int DEFAULT_ABOVE_FIELD = 8;
     private static final int BIOME_LOOKUP_PADDING = 4;
     private static final ResourceLocation BIOME_COLD_DRY = referenceBiome("cold_dry");
     private static final ResourceLocation BIOME_COLD_NORMAL = referenceBiome("cold_normal");
@@ -90,7 +91,8 @@ public final class GreenhouseBiomeOverlayService
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        return applyOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, climate, naturalBiomes, appliedBiomes);
+        return applyOverlay(level, FieldBiomeFootprint.centered(
+            center, horizontalRange, DEFAULT_BELOW_FIELD, DEFAULT_ABOVE_FIELD), climate, naturalBiomes, appliedBiomes);
     }
 
     /**
@@ -208,7 +210,8 @@ public final class GreenhouseBiomeOverlayService
         final Map<BlockPos, ResourceLocation> naturalBiomes,
         final Map<BlockPos, ResourceLocation> appliedBiomes)
     {
-        return restoreOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, naturalBiomes, appliedBiomes);
+        return restoreOverlay(level, FieldBiomeFootprint.centered(
+            center, horizontalRange, DEFAULT_BELOW_FIELD, DEFAULT_ABOVE_FIELD), naturalBiomes, appliedBiomes);
     }
 
     /**
@@ -504,7 +507,8 @@ public final class GreenhouseBiomeOverlayService
         final int horizontalRange,
         final GreenhouseClimate climate)
     {
-        return needsOverlay(level, center, horizontalRange, DEFAULT_VERTICAL_RANGE, climate);
+        return needsOverlay(level, FieldBiomeFootprint.centered(
+            center, horizontalRange, DEFAULT_BELOW_FIELD, DEFAULT_ABOVE_FIELD), climate);
     }
 
     /**

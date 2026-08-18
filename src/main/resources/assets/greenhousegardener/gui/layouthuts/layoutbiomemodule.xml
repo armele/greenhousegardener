@@ -12,14 +12,14 @@
             <itemicon id="seed" size="16 16" pos="4 5"/>
             <checkbox id="owned" size="14 14" pos="27 6" source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"
                     checkmark="minecolonies:textures/gui/builderhut/builder_button_mini_check.png"/>
-            <dropdown id="temp" size="54 17" pos="48 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+            <dropdown id="temp" size="54 17" pos="48 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black" texthovercolor="darkgreen"
                     source="minecolonies:textures/gui/builderhut/builder_button_medium.png">
-                <button id="button" size="54 17" pos="0 0" textcolor="black"
+                <button id="button" size="54 17" pos="0 0" textcolor="black" texthovercolor="darkgreen"
                         source="minecolonies:textures/gui/builderhut/builder_button_medium.png"/>
             </dropdown>
-            <dropdown id="humidity" size="54 17" pos="108 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black"
+            <dropdown id="humidity" size="54 17" pos="108 5" dropDownSize="75 55" maxContentHeight="55" textcolor="black" texthovercolor="darkgreen"
                     source="minecolonies:textures/gui/builderhut/builder_button_very_small.png">
-                <button id="button" size="54 17" pos="0 0" textcolor="black"
+                <button id="button" size="54 17" pos="0 0" textcolor="black" texthovercolor="darkgreen"
                         source="minecolonies:textures/gui/builderhut/builder_button_very_small.png"/>
             </dropdown>
         </box>

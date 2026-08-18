@@ -113,6 +113,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     private final Map<BlockPos, ResourceLocation> naturalBiomes = new HashMap<>();
     private final Map<BlockPos, ResourceLocation> appliedBiomes = new HashMap<>();
     private final Map<BlockPos, RoofProblemKind> roofProblems = new HashMap<>();
+    private final Map<BlockPos, Long> roofRetryGameTimes = new HashMap<>();
     private long lastMaintenanceDecayScanDay = Long.MIN_VALUE;
     private long nextFieldValidationGameTime;
     private int fieldValidationCursor;
@@ -194,6 +195,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         readFieldPairDayMap(compound.getList(TAG_LAST_BIOME_CONTENTION_WARNING_DAYS, Tag.TAG_COMPOUND), lastBiomeContentionWarningDays);
 
         roofProblems.clear();
+        roofRetryGameTimes.clear();
         for (final Tag tag : compound.getList(TAG_ROOF_PROBLEMS, Tag.TAG_COMPOUND))
         {
             final CompoundTag problemTag = (CompoundTag) tag;
@@ -1067,9 +1069,17 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     }
 
     /** Record an unresolved roof validation problem for a field. */
-    public void recordRoofProblem(final BlockPos fieldPosition, final RoofProblemKind kind)
+    public void recordRoofProblem(final BlockPos fieldPosition, final RoofProblemKind kind, final long retryGameTime)
     {
-        if (fieldPosition != null && kind != null && roofProblems.put(fieldPosition.immutable(), kind) != kind)
+        if (fieldPosition == null || kind == null)
+        {
+            return;
+        }
+
+        final BlockPos immutablePosition = fieldPosition.immutable();
+        final RoofProblemKind previous = roofProblems.put(immutablePosition, kind);
+        roofRetryGameTimes.put(immutablePosition, retryGameTime);
+        if (previous != kind)
         {
             markDirty();
         }
@@ -1080,6 +1090,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     {
         if (fieldPosition != null && roofProblems.remove(fieldPosition) != null)
         {
+            roofRetryGameTimes.remove(fieldPosition);
             markDirty();
         }
     }
@@ -1094,6 +1105,17 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
     public boolean hasRoofProblem(final RoofProblemKind kind)
     {
         return kind != null && roofProblems.containsValue(kind);
+    }
+
+    /** Check whether a worker-confirmed roof problem is ready for another inspection. */
+    public boolean isRoofRetryDue(final BlockPos fieldPosition, final long gameTime)
+    {
+        if (!hasRoofProblem(fieldPosition))
+        {
+            return false;
+        }
+
+        return gameTime >= roofRetryGameTimes.getOrDefault(fieldPosition, Long.MIN_VALUE);
     }
 
     /**
@@ -1242,6 +1264,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceWarningDays.remove(immutablePosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(immutablePosition));
         roofProblems.remove(immutablePosition);
+        roofRetryGameTimes.remove(immutablePosition);
         markDirty();
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule reverted field {} to natural biome on day {}; cleared overlay tracking and seed assignment.",
             colonyId(), formatBlockPos(immutablePosition), colonyDay));
@@ -1662,6 +1685,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         lastMaintenanceWarningDays.remove(fieldPosition);
         lastBiomeContentionWarningDays.keySet().removeIf(key -> key.contains(fieldPosition));
         roofProblems.remove(fieldPosition);
+        roofRetryGameTimes.remove(fieldPosition);
         markDirty();
         trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - BiomeModule released field {}; owned fields remaining {}.",
             colonyId(), formatBlockPos(fieldPosition), ownedFields.size()));
