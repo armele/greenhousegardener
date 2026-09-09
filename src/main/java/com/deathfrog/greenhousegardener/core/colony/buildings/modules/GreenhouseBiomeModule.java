@@ -1032,9 +1032,25 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * 
      * @return
      */
-    public static int maintenanceRevertDays()
+    public int maintenanceRevertDays()
     {
-        return Config.maintenanceRevertDays.get() + 1;
+        final double researchBonus = building == null || building.getColony() == null
+            ? 0.0D
+            : building.getColony().getResearchManager().getResearchEffects().getEffectStrength(ModResearch.RESEARCH_MAINTENANCE_DURATION);
+        return effectiveMaintenanceRevertDays(Config.maintenanceRevertDays.get(), researchBonus);
+    }
+
+    /**
+     * Combine the configured missed-maintenance window with its research bonus and
+     * the current-day allowance used by the decay calculations.
+     *
+     * @param configuredDays configured number of completed missed-maintenance days
+     * @param researchBonus additional days supplied by colony research
+     * @return effective decay threshold in colony days
+     */
+    static int effectiveMaintenanceRevertDays(final int configuredDays, final double researchBonus)
+    {
+        return Math.max(1, configuredDays) + Math.max(0, (int) Math.floor(researchBonus)) + 1;
     }
 
     /**
@@ -1974,11 +1990,13 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         final int daysSinceMaintenance = (int) Math.max(0, colonyDay - lastMaintenanceDay);
+        final int reversionThreshold = maintenanceRevertDays();
         return new MaintenanceDecayStatus(
             lastMaintenanceDay,
             colonyDay,
             daysSinceMaintenance,
-            Math.max(0, maintenanceRevertDays() - daysSinceMaintenance));
+            Math.max(0, reversionThreshold - daysSinceMaintenance),
+            reversionThreshold);
     }
 
     /**
@@ -1988,8 +2006,9 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      * @param colonyDay current colony day
      * @param daysSinceMaintenance days since the last successful maintenance/conversion
      * @param daysUntilReversion days left before natural reversion
+     * @param reversionThreshold number of elapsed colony days that triggers reversion
      */
-    private record MaintenanceDecayStatus(long lastMaintenanceDay, long colonyDay, int daysSinceMaintenance, int daysUntilReversion)
+    private record MaintenanceDecayStatus(long lastMaintenanceDay, long colonyDay, int daysSinceMaintenance, int daysUntilReversion, int reversionThreshold)
     {
         /**
          * Check whether the maintenance grace period has expired.
@@ -1998,7 +2017,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
          */
         private boolean shouldRevert()
         {
-            return daysSinceMaintenance >= maintenanceRevertDays();
+            return daysSinceMaintenance >= reversionThreshold;
         }
 
         /**

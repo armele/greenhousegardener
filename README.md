@@ -135,7 +135,7 @@ Avoid sealed display-only greenhouses where the worker can see the field but can
 
 ### Maintenance And Reversion
 
-Climate-changed fields require maintenance. If the worker cannot maintain a field because the roof is invalid or climate materials are unavailable, the field can eventually revert to its natural biome. The default missed-maintenance window is 5 colony days.
+Climate-changed fields require maintenance. If the worker cannot maintain a field because the roof is invalid or climate materials are unavailable, the field can eventually revert to its natural biome. The default missed-maintenance window is 5 colony days and can be extended with research.
 
 When a field reverts to its natural biome the seed will be unset from that farm field.
 

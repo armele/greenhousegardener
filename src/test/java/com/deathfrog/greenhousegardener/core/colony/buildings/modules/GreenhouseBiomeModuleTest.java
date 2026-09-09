@@ -21,4 +21,20 @@ class GreenhouseBiomeModuleTest
         assertEquals(Result.VALID, HubValidation.classify(true, true));
         assertEquals(Result.INVALID, HubValidation.classify(true, false));
     }
+
+    @Test
+    void maintenanceResearchAddsWholeDaysToConfiguredWindow()
+    {
+        assertEquals(6, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, 0.0D));
+        assertEquals(7, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, 1.0D));
+        assertEquals(8, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, 2.0D));
+        assertEquals(9, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, 3.0D));
+    }
+
+    @Test
+    void maintenanceResearchBonusIsFlooredAndClamped()
+    {
+        assertEquals(6, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, -1.0D));
+        assertEquals(7, GreenhouseBiomeModule.effectiveMaintenanceRevertDays(5, 1.9D));
+    }
 }

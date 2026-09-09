@@ -1,0 +1,37 @@
+{
+  "name": "Extended Climate",
+  "subtitle": "Climate control with remarkable staying power.",
+  "branch": "minecolonies:technology",
+  "parentResearch": "greenhousegardener:technology/persistent_climate",
+  "researchLevel": 5,
+  "sortOrder": 2,
+  "exclusiveChildResearch": false,
+  "no-reset": false,
+  "hidden": false,
+  "autostart": false,
+  "instant": false,
+  "requirements": [
+    {
+      "type": "minecolonies:building",
+      "building": "greenhousegardener:greenhouse",
+      "level": 5
+    }
+  ],
+  "costs": [
+    {
+      "count": 16,
+      "item": "minecraft:deepslate_bricks"
+    },
+    {
+      "count": 16,
+      "item": "minecraft:glowstone"
+    }
+  ],
+  "effects": [
+    {
+      "id": "greenhousegardener:effects/maintenance_duration",
+      "level": 3
+    }
+  ],
+  "icon": "greenhousegardener:climatecontrolhub"
+}

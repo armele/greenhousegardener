@@ -1,0 +1,37 @@
+{
+  "name": "Persistent Climate",
+  "subtitle": "The best we can offer.",
+  "branch": "minecolonies:technology",
+  "parentResearch": "greenhousegardener:technology/durable_climate",
+  "researchLevel": 4,
+  "sortOrder": 2,
+  "exclusiveChildResearch": false,
+  "no-reset": false,
+  "hidden": false,
+  "autostart": false,
+  "instant": false,
+  "requirements": [
+    {
+      "type": "minecolonies:building",
+      "building": "greenhousegardener:greenhouse",
+      "level": 4
+    }
+  ],
+  "costs": [
+    {
+      "count": 32,
+      "item": "minecraft:tinted_glass"
+    },
+    {
+      "count": 16,
+      "item": "minecraft:amethyst_shard"
+    }
+  ],
+  "effects": [
+    {
+      "id": "greenhousegardener:effects/maintenance_duration",
+      "level": 2
+    }
+  ],
+  "icon": "greenhousegardener:climatecontrolhub"
+}

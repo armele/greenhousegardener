@@ -1,0 +1,9 @@
+{
+  "effect": true,
+  "name": "Extends biome maintenance period by %s day.",
+  "levels": [
+    1.0,
+    2.0,
+    3.0
+  ]
+}
