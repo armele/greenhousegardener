@@ -24,6 +24,19 @@ class GreenhouseCropProductListenerTest
     }
 
     @Test
+    void mapsMustardSeedToMustardGreens()
+    {
+        final Map<ResourceLocation, ResourceLocation> mappings = GreenhouseCropProductListener.parseDefinitions(Map.of(
+            ResourceLocation.fromNamespaceAndPath("greenhousegardener", "mustard"),
+            JsonParser.parseString(
+                "{\"seed\":\"greenhousegardener:mustard_seed\",\"product\":\"greenhousegardener:mustard_greens\"}")));
+
+        assertEquals(ResourceLocation.parse("greenhousegardener:mustard_greens"),
+            GreenhouseCropProductListener.productIdFor(
+                ResourceLocation.parse("greenhousegardener:mustard_seed"), mappings));
+    }
+
+    @Test
     void fallsBackToPlantingItemWithoutMapping()
     {
         final ResourceLocation carrot = ResourceLocation.parse("minecraft:carrot");

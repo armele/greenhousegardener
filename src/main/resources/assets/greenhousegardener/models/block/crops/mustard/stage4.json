@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/crop",
+  "textures": {
+    "crop": "greenhousegardener:block/crops/mustard/stage4"
+  }
+}

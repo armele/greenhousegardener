@@ -57,6 +57,16 @@ public final class ModItems
       BlockBroccoli.BLOCK_NAME,
       () -> new ItemCrop(ModBlocks.broccoli.get(), new Item.Properties(), ModTags.coldBiomes));
 
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<ItemCrop> mustardSeed = ITEMS.register(
+      "mustard_seed",
+      () -> new ItemCrop(ModBlocks.mustard.get(), new Item.Properties(), null));
+
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<Item> mustardGreens = ITEMS.register(
+      "mustard_greens",
+      () -> new Item(new Item.Properties().food(rawCropFoodProperties())));
+
     public static final @Nonnull DeferredItem<Item> breadcrumbs = registerIngredient("breadcrumbs");
 
     @SuppressWarnings("null")
@@ -84,6 +94,7 @@ public final class ModItems
     public static final @Nonnull DeferredItem<Item> broccoliCheeseCasserole = registerFood("broccoli_cheese_casserole", 2);
     public static final @Nonnull DeferredItem<Item> broccolislaw = registerFood("broccolislaw", 1);
     public static final @Nonnull DeferredItem<Item> cacciatore = registerFood("cacciatore", 3);
+    public static final @Nonnull DeferredItem<Item> carolinaDog = registerFood("carolina_dog", 2);
     public static final @Nonnull DeferredItem<Item> chickenAndWaffles = registerFood("chicken_and_waffles", 3);
     public static final @Nonnull DeferredItem<Item> chickpeaCurry = registerFood("chickpea_curry", 2);
     public static final @Nonnull DeferredItem<Item> clubSandwich = registerFood("club_sandwich", 2);
@@ -92,20 +103,24 @@ public final class ModItems
     public static final @Nonnull DeferredItem<Item> cornOil = registerIngredient("corn_oil");
     public static final @Nonnull DeferredItem<Item> cottagePie = registerFood("cottage_pie", 3);
     public static final @Nonnull DeferredItem<Item> creamedSpinach = registerFood("creamed_spinach", 1);
+    public static final @Nonnull DeferredItem<Item> cuban = registerFood("cuban", 2);
     public static final @Nonnull DeferredItem<Item> doner = registerFood("doner", 3);
     public static final @Nonnull DeferredItem<Item> eggplantParmagiana = registerFood("eggplant_parmagiana", 2);
     public static final @Nonnull DeferredItem<Item> friedChicken = registerFood("fried_chicken", 2);
     public static final @Nonnull DeferredItem<Item> gamekeepersPie = registerFood("gamekeepers_pie", 3);
     public static final @Nonnull DeferredItem<Item> garlicCheeseGrits = registerFood("garlic_cheese_grits", 2);
     public static final @Nonnull DeferredItem<Item> generalTsosChicken = registerFood("general_tsos_chicken", 3);
+    public static final @Nonnull DeferredItem<Item> hotdog = registerFood("hotdog", 1);
     public static final @Nonnull DeferredItem<Item> mayo = registerIngredient("mayo");
     public static final @Nonnull DeferredItem<Item> mashedPotato = registerFood("mashed_potato", 2);
     public static final @Nonnull DeferredItem<Item> mintyPeas = registerFood("minty_peas", 2);
     public static final @Nonnull DeferredItem<Item> mixedRice = registerFood("mixed_rice", 2);
+    public static final @Nonnull DeferredItem<Item> mustard = registerIngredient("mustard");
     public static final @Nonnull DeferredItem<Item> pastie = registerFood("pastie", 3);
     public static final @Nonnull DeferredItem<Item> pastry = registerIngredient("pastry");
     public static final @Nonnull DeferredItem<Item> pickles = registerFood("pickles", 1);
     public static final @Nonnull DeferredItem<Item> popcorn = registerFood("popcorn", 1);
+    public static final @Nonnull DeferredItem<Item> potatoSalad = registerFood("potato_salad", 2);
     public static final @Nonnull DeferredItem<Item> potatoChips = registerFood("potato_chips", 1);
     public static final @Nonnull DeferredItem<Item> rouladen = registerFood("rouladen", 2);
     public static final @Nonnull DeferredItem<Item> sabzi = registerFood("sabzi", 2);
@@ -157,5 +172,10 @@ public final class ModItems
             case 2 -> new FoodProperties.Builder().nutrition(9).saturationModifier(.25F).build();
             default -> new FoodProperties.Builder().nutrition(6).saturationModifier(0.1F).build();
         };
+    }
+
+    private static FoodProperties rawCropFoodProperties()
+    {
+        return new FoodProperties.Builder().nutrition(1).saturationModifier(0.3F).build();
     }
 }

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:hotdog"
+    },
+    {
+      "tag": "greenhousegardener:slaw"
+    },
+    {
+      "item": "greenhousegardener:mustard"
+    }
+  ],
+  "result": {
+    "id": "greenhousegardener:carolina_dog"
+  }
+}

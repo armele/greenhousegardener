@@ -6,7 +6,7 @@
       "item": "minecraft:porkchop"
     },
     {
-      "item": "greenhousegardener:sourdough_bread"
+      "tag": "c:foods/bread"
     },
     {
       "item": "minecolonies:butter"

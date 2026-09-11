@@ -27,7 +27,13 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.repository.Pack;
+import net.minecraft.server.packs.repository.PackSource;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddPackFindersEvent;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
@@ -44,6 +50,8 @@ public class GreenhouseGardenerMod
     // Directly reference a slf4j logger
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    private static final PackSource OPTIONAL_PACK_SOURCE = PackSource.create(component -> component, false);
+
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public GreenhouseGardenerMod(IEventBus modEventBus, ModContainer modContainer)
@@ -53,6 +61,7 @@ public class GreenhouseGardenerMod
         modEventBus.addListener(ModBuildingsInitializer::registerBuildings);
         modEventBus.addListener(CapabilityInitializer::registerCapabilities);
         modEventBus.addListener(NetworkHandler::register);
+        modEventBus.addListener(this::addPackFinders);
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
@@ -79,6 +88,18 @@ public class GreenhouseGardenerMod
 
     private void commonSetup(FMLCommonSetupEvent event)
     {
+    }
+
+    @SuppressWarnings("null")
+    private void addPackFinders(final AddPackFindersEvent event)
+    {
+        event.addPackFinders(
+            ResourceLocation.fromNamespaceAndPath(MODID, "datapacks/more_illnesses"),
+            PackType.SERVER_DATA,
+            Component.translatable("pack.greenhousegardener.more_illnesses"),
+            OPTIONAL_PACK_SOURCE,
+            false,
+            Pack.Position.TOP);
     }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call

@@ -3,16 +3,16 @@
   "category": "misc",
   "ingredients": [
     {
-      "item": "minecraft:chicken"
-    },
-    {
       "item": "minecraft:porkchop"
     },
     {
-      "item": "minecolonies:tomato"
+      "item": "greenhousegardener:pickles"
     },
     {
-      "item": "greenhousegardener:mayo"
+      "item": "minecolonies:cheddar_cheese"
+    },
+    {
+      "item": "greenhousegardener:mustard"
     },
     {
       "tag": "c:foods/bread"
@@ -20,6 +20,6 @@
   ],
   "result": {
     "count": 2,
-    "id": "greenhousegardener:club_sandwich"
+    "id": "greenhousegardener:cuban"
   }
 }

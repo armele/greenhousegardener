@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:mustard_seed"
+    },
+    {
+      "item": "greenhousegardener:mustard_seed"
+    },
+    {
+      "item": "greenhousegardener:apple_cider_vinegar"
+    }
+  ],
+  "result": {
+    "count": 2,
+    "id": "greenhousegardener:mustard"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "age=0": { "model": "greenhousegardener:block/crops/mustard/stage0" },
+    "age=1": { "model": "greenhousegardener:block/crops/mustard/stage1" },
+    "age=2": { "model": "greenhousegardener:block/crops/mustard/stage2" },
+    "age=3": { "model": "greenhousegardener:block/crops/mustard/stage3" },
+    "age=4": { "model": "greenhousegardener:block/crops/mustard/stage4" },
+    "age=5": { "model": "greenhousegardener:block/crops/mustard/stage5" },
+    "age=6": { "model": "greenhousegardener:block/crops/mustard/stage6" }
+  }
+}

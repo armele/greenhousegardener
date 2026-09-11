@@ -1,0 +1,14 @@
+{
+  "name": "disease.greenhousegardener.bronchitis",
+  "rarity": 15,
+  "items": [
+    {
+      "id": "greenhousegardener:mustard_seed",
+      "count": 1
+    },
+    {
+      "id": "minecolonies:large_water_bottle",
+      "count": 1
+    }
+  ]
+}

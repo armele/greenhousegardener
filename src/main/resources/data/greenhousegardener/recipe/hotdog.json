@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "tag": "greenhousegardener:meats"
+    },
+    {
+      "tag": "greenhousegardener:meats"
+    },
+    {
+      "tag": "greenhousegardener:meats"
+    },
+    {
+      "tag": "c:foods/bread"
+    }
+  ],
+  "result": {
+    "count": 6,
+    "id": "greenhousegardener:hotdog"
+  }
+}
