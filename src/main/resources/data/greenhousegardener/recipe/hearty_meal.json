@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "tag": "greenhousegardener:main_dish"
+    },
+    {
+      "tag": "greenhousegardener:side_dish"
+    },
+    {
+      "tag": "greenhousegardener:side_dish"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:hearty_meal"
+  }
+}

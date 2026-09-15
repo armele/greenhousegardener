@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "greenhousegardener:cucumber",
+    "greenhousegardener:spinach",
+    "greenhousegardener:broccoli",
+    "greenhousegardener:mustard_greens"
+  ]
+}

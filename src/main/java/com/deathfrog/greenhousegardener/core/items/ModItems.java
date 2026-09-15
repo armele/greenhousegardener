@@ -18,6 +18,7 @@ import com.minecolonies.core.items.ItemFood;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.ModifyDefaultComponentsEvent;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -85,6 +86,7 @@ public final class ModItems
 
     public static final @Nonnull DeferredItem<Item> aussieToast = registerFood("aussie_toast", 1);
     public static final @Nonnull DeferredItem<Item> baconButty = registerFood("bacon_butty", 2);
+    public static final @Nonnull DeferredItem<Item> bangersAndMash = registerFood("bangers_and_mash", 3);
     public static final @Nonnull DeferredItem<Item> barbecue = registerFood("barbecue", 2);
     public static final @Nonnull DeferredItem<Item> barbecuePlate = registerFood("barbecue_plate", 3);
     public static final @Nonnull DeferredItem<Item> biscuits = registerFood("biscuits", 1);
@@ -92,9 +94,11 @@ public final class ModItems
     public static final @Nonnull DeferredItem<Item> blitva = registerFood("blitva", 1);
     public static final @Nonnull DeferredItem<Item> brekkiePlate = registerFood("brekkie_plate", 2);
     public static final @Nonnull DeferredItem<Item> broccoliCheeseCasserole = registerFood("broccoli_cheese_casserole", 2);
+    public static final @Nonnull DeferredItem<Item> broccoliCheddarSoup = registerBowlFood("broccoli_cheddar_soup", 2);
     public static final @Nonnull DeferredItem<Item> broccolislaw = registerFood("broccolislaw", 1);
     public static final @Nonnull DeferredItem<Item> cacciatore = registerFood("cacciatore", 3);
     public static final @Nonnull DeferredItem<Item> carolinaDog = registerFood("carolina_dog", 2);
+    public static final @Nonnull DeferredItem<Item> catsup = registerIngredient("catsup");
     public static final @Nonnull DeferredItem<Item> chickenAndWaffles = registerFood("chicken_and_waffles", 3);
     public static final @Nonnull DeferredItem<Item> chickpeaCurry = registerFood("chickpea_curry", 2);
     public static final @Nonnull DeferredItem<Item> clubSandwich = registerFood("club_sandwich", 2);
@@ -110,26 +114,40 @@ public final class ModItems
     public static final @Nonnull DeferredItem<Item> gamekeepersPie = registerFood("gamekeepers_pie", 3);
     public static final @Nonnull DeferredItem<Item> garlicCheeseGrits = registerFood("garlic_cheese_grits", 2);
     public static final @Nonnull DeferredItem<Item> generalTsosChicken = registerFood("general_tsos_chicken", 3);
+    @SuppressWarnings("null")
+    public static final @Nonnull DeferredItem<Item> heartyMeal = ITEMS.register(
+      "hearty_meal",
+      () -> new ItemFood(
+        new Item.Properties().food(new FoodProperties.Builder().nutrition(14).saturationModifier(0.3F).build()),
+        3));
+    public static final @Nonnull DeferredItem<Item> honeyMustard = registerIngredient("honey_mustard");
     public static final @Nonnull DeferredItem<Item> hotdog = registerFood("hotdog", 1);
     public static final @Nonnull DeferredItem<Item> mayo = registerIngredient("mayo");
     public static final @Nonnull DeferredItem<Item> mashedPotato = registerFood("mashed_potato", 2);
     public static final @Nonnull DeferredItem<Item> mintyPeas = registerFood("minty_peas", 2);
+    public static final @Nonnull DeferredItem<Item> mixedGreens = registerFood("mixed_greens", 1);
     public static final @Nonnull DeferredItem<Item> mixedRice = registerFood("mixed_rice", 2);
     public static final @Nonnull DeferredItem<Item> mustard = registerIngredient("mustard");
+    public static final @Nonnull DeferredItem<Item> mustardChicken = registerFood("mustard_chicken", 2);
+    public static final @Nonnull DeferredItem<Item> mustardPoultice = registerIngredient("mustard_poultice");
     public static final @Nonnull DeferredItem<Item> pastie = registerFood("pastie", 3);
     public static final @Nonnull DeferredItem<Item> pastry = registerIngredient("pastry");
     public static final @Nonnull DeferredItem<Item> pickles = registerFood("pickles", 1);
+    public static final @Nonnull DeferredItem<Item> ploughmansLunch = registerFood("ploughmans_lunch", 3);
     public static final @Nonnull DeferredItem<Item> popcorn = registerFood("popcorn", 1);
     public static final @Nonnull DeferredItem<Item> potatoSalad = registerFood("potato_salad", 2);
     public static final @Nonnull DeferredItem<Item> potatoChips = registerFood("potato_chips", 1);
+    public static final @Nonnull DeferredItem<Item> relish = registerIngredient("relish");
     public static final @Nonnull DeferredItem<Item> rouladen = registerFood("rouladen", 2);
     public static final @Nonnull DeferredItem<Item> sabzi = registerFood("sabzi", 2);
+    public static final @Nonnull DeferredItem<Item> sauteedGreens = registerFood("sauteed_greens", 1);
     public static final @Nonnull DeferredItem<Item> sausage = registerFood("sausage", 1);
     public static final @Nonnull DeferredItem<Item> sausagePizza = registerFood("sausage_pizza", 3);
     public static final @Nonnull DeferredItem<Item> sourdoughBread = registerFood("sourdough_bread", 1);
     public static final @Nonnull DeferredItem<Item> sourdoughStarter = registerIngredient("sourdough_starter");
     public static final @Nonnull DeferredItem<Item> spanakopita = registerFood("spanakopita", 2);
     public static final @Nonnull DeferredItem<Item> spinachSalad = registerFood("spinach_salad", 1);
+    public static final @Nonnull DeferredItem<Item> toppedDog = registerFood("topped_dog", 2);
     public static final @Nonnull DeferredItem<Item> tzatziki = registerFood("tzatziki", 1);
     public static final @Nonnull DeferredItem<Item> waffles = registerFood("waffles", 2);
 
@@ -164,6 +182,12 @@ public final class ModItems
         return ITEMS.register(name, () -> new ItemFood(new Item.Properties().food(foodProperties(tier)), tier));
     }
 
+    @SuppressWarnings("null")
+    private static @Nonnull DeferredItem<Item> registerBowlFood(final String name, final int tier)
+    {
+        return ITEMS.register(name, () -> new ItemFood(new Item.Properties().food(bowlFoodProperties(tier)), tier));
+    }
+
     private static FoodProperties foodProperties(final int tier)
     {
         return switch (tier)
@@ -171,6 +195,17 @@ public final class ModItems
             case 3 -> new FoodProperties.Builder().nutrition(12).saturationModifier(.25F).build();
             case 2 -> new FoodProperties.Builder().nutrition(9).saturationModifier(.25F).build();
             default -> new FoodProperties.Builder().nutrition(6).saturationModifier(0.1F).build();
+        };
+    }
+
+    @SuppressWarnings("null")
+    private static FoodProperties bowlFoodProperties(final int tier)
+    {
+        return switch (tier)
+        {
+            case 3 -> new FoodProperties.Builder().nutrition(12).saturationModifier(.25F).usingConvertsTo(Items.BOWL).build();
+            case 2 -> new FoodProperties.Builder().nutrition(9).saturationModifier(.25F).usingConvertsTo(Items.BOWL).build();
+            default -> new FoodProperties.Builder().nutrition(6).saturationModifier(0.1F).usingConvertsTo(Items.BOWL).build();
         };
     }
 

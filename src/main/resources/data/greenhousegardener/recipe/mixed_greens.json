@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:spinach"
+    },
+    {
+      "item": "greenhousegardener:mustard_greens"
+    },
+    {
+      "item": "greenhousegardener:cucumber"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:mixed_greens"
+  }
+}

@@ -3,11 +3,7 @@
   "rarity": 15,
   "items": [
     {
-      "id": "greenhousegardener:mustard_seed",
-      "count": 1
-    },
-    {
-      "id": "minecolonies:large_water_bottle",
+      "id": "greenhousegardener:mustard_poultice",
       "count": 1
     }
   ]

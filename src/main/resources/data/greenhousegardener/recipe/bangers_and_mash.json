@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "greenhousegardener:sausage"
+    },
+    {
+      "item": "greenhousegardener:mashed_potato"
+    },
+    {
+      "item": "greenhousegardener:mustard_greens"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "greenhousegardener:bangers_and_mash"
+  }
+}

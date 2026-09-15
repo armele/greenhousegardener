@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecolonies:butter"
+    },
+    {
+      "item": "greenhousegardener:mustard_greens"
+    },
+    {
+      "item": "greenhousegardener:mustard_greens"
+    }
+  ],
+  "result": {
+    "count": 2,
+    "id": "greenhousegardener:sauteed_greens"
+  }
+}

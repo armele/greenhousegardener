@@ -1,0 +1,62 @@
+{
+  "replace": false,
+  "values": [
+    "greenhousegardener:barbecue",
+    "greenhousegardener:broccoli_cheddar_soup",
+    "greenhousegardener:cacciatore",
+    "greenhousegardener:chickpea_curry",
+    "greenhousegardener:eggplant_parmagiana",
+    "greenhousegardener:fried_chicken",
+    "greenhousegardener:mustard_chicken",
+    "greenhousegardener:rouladen",
+    "greenhousegardener:sabzi",
+    "greenhousegardener:sausage",
+    "minecolonies:baked_salmon",
+    "minecolonies:borscht",
+    "minecolonies:cheese_ravioli",
+    "minecolonies:corn_chowder",
+    "minecolonies:eggdrop_soup",
+    "minecolonies:eggplant_dolma",
+    "minecolonies:kebab",
+    "minecolonies:lamb_stew",
+    "minecolonies:meat_ravioli",
+    "minecolonies:pasta_plain",
+    "minecolonies:pasta_tomato",
+    "minecolonies:pea_soup",
+    "minecolonies:pierogi",
+    "minecolonies:potato_soup",
+    "minecolonies:pottage",
+    "minecolonies:schnitzel",
+    "minecolonies:spicy_eggplant",
+    "minecolonies:spicy_grilled_chicken",
+    "minecolonies:squash_soup",
+    "minecolonies:stuffed_pepper",
+    "minecolonies:veggie_quiche",
+    "minecolonies:veggie_ravioli",
+    "minecolonies:veggie_soup",
+    {
+      "id": "mctradepost:chickpea_stroganoff",
+      "required": false
+    },
+    {
+      "id": "mctradepost:dumplings_and_cream",
+      "required": false
+    },
+    {
+      "id": "mctradepost:gourmet_perpetual_stew",
+      "required": false
+    },
+    {
+      "id": "mctradepost:hearty_perpetual_stew",
+      "required": false
+    },
+    {
+      "id": "mctradepost:perpetual_stew",
+      "required": false
+    },
+    {
+      "id": "mctradepost:stir_fry",
+      "required": false
+    }
+  ]
+}
