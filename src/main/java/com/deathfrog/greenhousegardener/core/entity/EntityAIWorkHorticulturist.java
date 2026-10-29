@@ -55,6 +55,7 @@ import com.minecolonies.api.util.ItemStackUtils;
 import com.minecolonies.api.util.MessageUtils;
 import com.minecolonies.api.util.StatsUtil;
 import com.minecolonies.api.util.constant.StatisticsConstants;
+import com.minecolonies.core.colony.interactionhandling.PosBasedInteraction;
 import com.minecolonies.core.colony.interactionhandling.StandardInteraction;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.entity.ai.workers.AbstractEntityAIInteract;
@@ -469,7 +470,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             final FieldBiomeAssignment assignment = module.getAssignment(fieldPosition);
             final GreenhouseClimate climate = climate(assignment);
             final int fieldRange = horizontalRange(field);
-            if (module.isFieldModifiedFromNatural(level, fieldPosition))
+            if (module.requiresClimateConditioning(level, fieldPosition))
             {
                 if (!maintainedModifiedBiomes.contains(assignment) && maintainedModifiedBiomes.size() >= modifiedBiomeLimit)
                 {
@@ -535,7 +536,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             if (overlayCheck.needsOverlay())
             {
                 final String fieldDescription = formatField(fieldIndex, fieldPosition);
-                if (isMaintenanceOverlayRepair(module, field, overlayCheck))
+                if (isMaintenanceOverlayRepair(level, module, field, overlayCheck))
                 {
                     trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist treating field {} overlay mismatch as maintenance repair: {}/{} cells mismatched.",
                         building.getColony().getID(), fieldDescription, overlayCheck.mismatchedCells(), overlayCheck.loadedCells()));
@@ -559,7 +560,15 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
 
                 trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist selected conversion field {} with range {}.",
                     building.getColony().getID(), fieldDescription, fieldRange));
-                return beginFieldRoofValidation(field, fieldIndex, fieldRange, HorticulturistState.TRANSFORM_FIELD);
+                if (module.requiresClimateConditioning(level, fieldPosition))
+                {
+                    return beginFieldRoofValidation(field, fieldIndex, fieldRange, HorticulturistState.TRANSFORM_FIELD);
+                }
+
+                currentField = field;
+                currentFieldIndex = fieldIndex;
+                currentFieldRange = fieldRange;
+                return HorticulturistState.TRANSFORM_FIELD;
             }
         }
 
@@ -834,13 +843,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             return ConversionPreflightResult.skippedField();
         }
 
-        if (conversionCost.isNone())
-        {
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped conversion preflight for field {} because the target climate already matches its natural climate.",
-                building.getColony().getID(), formatBlockPos(fieldPos)));
-            return ConversionPreflightResult.skippedField();
-        }
-
         if (shortage.isBlank())
         {
             trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist conversion preflight ready for field {} with cost {}.",
@@ -1055,7 +1057,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
             module.recordFieldMaintenanceMissed(fieldPosition, colonyDay);
             module.recordRoofProblem(fieldPosition, roofProblemKind(roofValidation, true), worker.level().getGameTime() + ROOF_RETRY_DELAY_TICKS);
             job.setBiomeLedgerShortage(false);
-            triggerRoofInteraction(maintenanceRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, true));
+            triggerRoofInteraction(
+                maintenanceRoofFailureMessage(fieldPosition, roofValidation),
+                roofFailureInteractionKey(roofValidation, true),
+                fieldPosition);
             return;
         }
 
@@ -1070,7 +1075,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 building.getColony().getID(), formatBlockPos(fieldPosition), colonyDay));
         }
 
-        triggerRoofInteraction(conversionRoofFailureMessage(fieldPosition, roofValidation), roofFailureInteractionKey(roofValidation, false));
+        triggerRoofInteraction(
+            conversionRoofFailureMessage(fieldPosition, roofValidation),
+            roofFailureInteractionKey(roofValidation, false),
+            fieldPosition);
     }
 
     /**
@@ -1078,13 +1086,18 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      *
      * @param message player-facing interaction message
      * @param translationKey interaction translation key
+     * @param fieldPosition field anchor associated with the roof problem
      */
-    private void triggerRoofInteraction(final Component message, final @Nonnull String translationKey)
+    private void triggerRoofInteraction(
+        final Component message,
+        final @Nonnull String translationKey,
+        final @Nonnull BlockPos fieldPosition)
     {
-        worker.getCitizenData().triggerInteraction(new StandardInteraction(
+        worker.getCitizenData().triggerInteraction(new PosBasedInteraction(
             message,
+            ChatPriority.BLOCKING,
             Component.translatable(translationKey),
-            ChatPriority.BLOCKING));
+            fieldPosition));
     }
 
     /**
@@ -1131,14 +1144,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final BiomeConversionCost conversionCost = biomeConversionCost(level, currentField, assignment, module);
         final GreenhouseTemperatureModule temperatureModule = safeTemperatureModule();
         final GreenhouseHumidityModule humidityModule = safeHumidityModule();
-
-        if (conversionCost.isNone())
-        {
-            trace(() -> GreenhouseGardenerMod.LOGGER.info("Colony {} - Horticulturist skipped transform for field {} because the target climate already matches its natural climate.",
-                building.getColony().getID(), formatCurrentField()));
-            resetCurrentField();
-            return DECIDE;
-        }
 
         final String shortage = ledgerShortage(conversionCost, temperatureModule, humidityModule);
         if (!shortage.isBlank())
@@ -1991,7 +1996,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         final BlockPos fieldPosition = field.getPosition();
         return fieldPosition != null
-            && module.isFieldModifiedFromNatural(level, fieldPosition)
+            && module.requiresClimateConditioning(level, fieldPosition)
             && module.hasRecordedClimateWork(fieldPosition)
             && !module.wasFieldConvertedOnDay(fieldPosition, colonyDay)
             && !module.wasFieldRevertedOnDay(fieldPosition, colonyDay)
@@ -2013,7 +2018,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         final FarmField field)
     {
         final BlockPos fieldPosition = field == null ? null : field.getPosition();
-        return fieldPosition != null && module.isFieldModifiedFromNatural(level, fieldPosition);
+        return fieldPosition != null && module.requiresClimateConditioning(level, fieldPosition);
     }
 
     /**
@@ -2076,6 +2081,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
      */
     @SuppressWarnings("null")
     private static boolean isMaintenanceOverlayRepair(
+        final ServerLevel level,
         final GreenhouseBiomeModule module,
         final FarmField field,
         final OverlayCheckResult overlayCheck)
@@ -2086,7 +2092,10 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
         }
 
         final BlockPos fieldPosition = field.getPosition();
-        if (fieldPosition == null || !module.hasRecordedClimateWork(fieldPosition) || !module.hasTrackedOverlay(field))
+        if (fieldPosition == null
+            || !module.requiresClimateConditioning(level, fieldPosition)
+            || !module.hasRecordedClimateWork(fieldPosition)
+            || !module.hasTrackedOverlay(field))
         {
             return false;
         }
@@ -2120,7 +2129,7 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
     {
         final BlockPos fieldPosition = field.getPosition();
         return fieldPosition != null
-            && module.isFieldModifiedFromNatural(level, fieldPosition)
+            && module.requiresClimateConditioning(level, fieldPosition)
             && !module.wasFieldConvertedOnDay(fieldPosition, colonyDay)
             && !module.wasFieldRevertedOnDay(fieldPosition, colonyDay)
             && module.hasTrackedOverlay(field)
@@ -2278,36 +2287,6 @@ public class EntityAIWorkHorticulturist extends AbstractEntityAIInteract<JobsHor
                 {
                     dryStepCells += -humiditySteps;
                 }
-            }
-        }
-
-        // Exact GG reference biomes carry the MineColonies crop tags.  Even when a custom biome's
-        // numeric climate already matches the request, an explicit overlay must have a minimum
-        // directional cost so transformField() does not discard the request.
-        if (hotStepCells == 0 && coldStepCells == 0 && humidStepCells == 0 && dryStepCells == 0)
-        {
-            if (assignment.temperature() == GreenhouseBiomeModule.TemperatureSetting.HOT)
-            {
-                hotStepCells = 1;
-            }
-            else if (assignment.temperature() == GreenhouseBiomeModule.TemperatureSetting.COLD)
-            {
-                coldStepCells = 1;
-            }
-            if (assignment.humidity() == GreenhouseBiomeModule.HumiditySetting.HUMID)
-            {
-                humidStepCells = 1;
-            }
-            else if (assignment.humidity() == GreenhouseBiomeModule.HumiditySetting.DRY)
-            {
-                dryStepCells = 1;
-            }
-
-            // Temperate/normal has no directional ledger of its own.  Use one temperature-increase
-            // step as the deterministic minimum charge when both requested axes are neutral.
-            if (hotStepCells == 0 && coldStepCells == 0 && humidStepCells == 0 && dryStepCells == 0)
-            {
-                hotStepCells = 1;
             }
         }
 

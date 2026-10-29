@@ -367,7 +367,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             }
 
             final BlockPos fieldPosition = field.getPosition();
-            final boolean modified = fieldPosition != null && isFieldModifiedFromNatural(level, fieldPosition);
+            final boolean modified = fieldPosition != null && requiresClimateConditioning(level, fieldPosition);
             final boolean trackedOverlay = fieldPosition != null && hasTrackedOverlay(field);
             if (fieldPosition == null || !modified || !trackedOverlay)
             {
@@ -699,7 +699,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         for (final BlockPos fieldPosition : proposedOwned)
         {
             final FieldBiomeAssignment assignment = proposedAssignments.get(fieldPosition);
-            if (assignment != null)
+            if (assignment != null && requiresClimateConditioning(assignment, naturalClimate(level, fieldPosition)))
             {
                 modifiedAssignments.add(assignment);
             }
@@ -716,7 +716,35 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
      */
     public boolean isFieldModifiedFromNatural(final ServerLevel level, final BlockPos fieldPosition)
     {
-        return fieldPosition != null && isOwned(fieldPosition) && assignments.containsKey(fieldPosition);
+        return requiresClimateConditioning(level, fieldPosition);
+    }
+
+    /**
+     * Check whether maintaining a field's requested climate requires active conditioning.
+     *
+     * <p>An explicit assignment always requires the tagged greenhouse biome overlay, but it only requires
+     * resources, roof checks, and recurring maintenance when either climate axis differs from the natural climate.</p>
+     *
+     * @param level server level containing biome data
+     * @param fieldPosition position of the farm field anchor
+     * @return true when the requested climate differs from the natural climate
+     */
+    public boolean requiresClimateConditioning(final ServerLevel level, final BlockPos fieldPosition)
+    {
+        if (fieldPosition == null || !isOwned(fieldPosition))
+        {
+            return false;
+        }
+
+        final FieldBiomeAssignment assignment = assignments.get(fieldPosition);
+        return assignment != null && requiresClimateConditioning(assignment, naturalClimate(level, fieldPosition));
+    }
+
+    static boolean requiresClimateConditioning(final FieldBiomeAssignment assignment, final GreenhouseClimate naturalClimate)
+    {
+        return assignment != null
+            && naturalClimate != null
+            && (assignment.temperature() != naturalClimate.temperature() || assignment.humidity() != naturalClimate.humidity());
     }
 
     /**
@@ -1006,7 +1034,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         }
 
         final BlockPos fieldPosition = field.getPosition();
-        return isFieldModifiedFromNatural(level, fieldPosition)
+        return requiresClimateConditioning(level, fieldPosition)
             && hasTrackedOverlay(field)
             && isFieldConditioningActiveForDay(fieldPosition, colonyDay)
             && !wasFieldRevertedOnDay(fieldPosition, colonyDay);
@@ -1117,10 +1145,16 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
         return fieldPosition != null && roofProblems.containsKey(fieldPosition);
     }
 
-    /** Check whether any unresolved problem matches an interaction category. */
-    public boolean hasRoofProblem(final RoofProblemKind kind)
+    /**
+     * Check whether a field has a worker-confirmed unresolved roof problem of a specific kind.
+     *
+     * @param fieldPosition position of the field to inspect
+     * @param kind expected roof problem category
+     * @return true when the field currently has the expected roof problem
+     */
+    public boolean hasRoofProblem(final BlockPos fieldPosition, final RoofProblemKind kind)
     {
-        return kind != null && roofProblems.containsValue(kind);
+        return fieldPosition != null && kind != null && roofProblems.get(fieldPosition) == kind;
     }
 
     /** Check whether a worker-confirmed roof problem is ready for another inspection. */
@@ -2194,7 +2228,7 @@ public class GreenhouseBiomeModule extends AbstractBuildingModule implements IPe
             return false;
         }
 
-        return assignments.containsKey(fieldPosition);
+        return requiresClimateConditioning(assignment, naturalClimate(level, fieldPosition));
     }
 
     /**

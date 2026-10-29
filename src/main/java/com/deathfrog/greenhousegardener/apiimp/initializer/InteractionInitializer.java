@@ -8,6 +8,7 @@ import com.deathfrog.greenhousegardener.api.colony.buildings.BuildingRanch;
 import com.deathfrog.greenhousegardener.core.colony.buildings.jobs.JobRancher;
 import com.minecolonies.api.colony.interactionhandling.InteractionValidatorRegistry;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 public class InteractionInitializer
@@ -25,14 +26,14 @@ public class InteractionInitializer
 
     public static void injectInteractionHandlers() 
     {
-        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_NOGLASS_AT),
-          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.CONVERSION_HOLE));
-        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_NOGLASS),
-          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.MAINTENANCE_HOLE));
-        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_ROOF_RATIO),
-          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.CONVERSION_RATIO));
-        InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO),
-          citizen -> hasRoofProblem(citizen.getWorkBuilding(), RoofProblemKind.MAINTENANCE_RATIO));
+        InteractionValidatorRegistry.registerPosBasedPredicate(Component.translatable(GREENHOUSE_NOGLASS_AT),
+          (citizen, fieldPosition) -> hasRoofProblem(citizen.getWorkBuilding(), fieldPosition, RoofProblemKind.CONVERSION_HOLE));
+        InteractionValidatorRegistry.registerPosBasedPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_NOGLASS),
+          (citizen, fieldPosition) -> hasRoofProblem(citizen.getWorkBuilding(), fieldPosition, RoofProblemKind.MAINTENANCE_HOLE));
+        InteractionValidatorRegistry.registerPosBasedPredicate(Component.translatable(GREENHOUSE_ROOF_RATIO),
+          (citizen, fieldPosition) -> hasRoofProblem(citizen.getWorkBuilding(), fieldPosition, RoofProblemKind.CONVERSION_RATIO));
+        InteractionValidatorRegistry.registerPosBasedPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_ROOF_RATIO),
+          (citizen, fieldPosition) -> hasRoofProblem(citizen.getWorkBuilding(), fieldPosition, RoofProblemKind.MAINTENANCE_RATIO));
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_LEDGER_SHORTAGE),
           citizen -> citizen.getWorkBuilding() instanceof BuildingGreenhouse && citizen.getJob(JobsHorticulturist.class).checkBiomeLedgerShortage());
         InteractionValidatorRegistry.registerStandardPredicate(Component.translatable(GREENHOUSE_BIOME_MAINTENANCE_SHORTAGE),
@@ -45,7 +46,7 @@ public class InteractionInitializer
           citizen -> citizen.getWorkBuilding() instanceof BuildingRanch && citizen.getJob(JobRancher.class).hasHerdTypeOverload());
     }
 
-    private static boolean hasRoofProblem(final Object workBuilding, final RoofProblemKind kind)
+    private static boolean hasRoofProblem(final Object workBuilding, final BlockPos fieldPosition, final RoofProblemKind kind)
     {
         if (!(workBuilding instanceof BuildingGreenhouse greenhouse))
         {
@@ -53,6 +54,6 @@ public class InteractionInitializer
         }
 
         final GreenhouseBiomeModule module = greenhouse.getModule(GreenhouseBiomeModule.class, ignored -> true);
-        return module != null && module.hasRoofProblem(kind);
+        return module != null && module.hasRoofProblem(fieldPosition, kind);
     }
 }

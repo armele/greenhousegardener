@@ -604,9 +604,7 @@ public class WindowBiomeModule extends AbstractModuleWindow<GreenhouseBiomeModul
      */
     private static boolean isModified(final FieldBiomeView field, final TemperatureSetting temperature, final HumiditySetting humidity)
     {
-        // Every owned climate selection is an explicit request for the corresponding tagged GG overlay.
-        // Numeric equality with the natural biome does not guarantee MineColonies crop-tag compatibility.
-        return true;
+        return temperature != field.naturalTemperature() || humidity != field.naturalHumidity();
     }
 
     /**
